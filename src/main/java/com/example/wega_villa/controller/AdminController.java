@@ -2,7 +2,10 @@ package com.example.wega_villa.controller;
 
 import com.example.wega_villa.model.User;
 import com.example.wega_villa.model.Role;
+import com.example.wega_villa.model.Contact;
 import com.example.wega_villa.service.UserService;
+import com.example.wega_villa.service.ContactService;
+import com.example.wega_villa.service.EmailService;
 import com.example.wega_villa.repository.UserRepository;
 import com.example.wega_villa.repository.RoleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +27,12 @@ public class AdminController {
 
     @Autowired
     private RoleRepository roleRepository;
+
+    @Autowired
+    private ContactService contactService;
+
+    @Autowired
+    private EmailService emailService;
 
     // Create a new manager
     @PostMapping("/managers")
@@ -221,7 +230,8 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", "Failed to fetch users: " + e.getMessage()));
         }
-    }    // Debug endpoint to check all users in database
+    }   
+     // Debug endpoint to check all users in database
     @GetMapping("/debug/all-users")
     public ResponseEntity<?> debugAllUsers() {
         try {
@@ -464,6 +474,223 @@ public class AdminController {
             System.out.println("Exception occurred during role update: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of("error", "Failed to update user role: " + e.getMessage()));
+        }
+    }
+
+    // ========== CONTACT MANAGEMENT ENDPOINTS ==========
+    
+    // Get all contacts for admin review
+    @GetMapping("/contacts")
+    public ResponseEntity<?> getAllContactsForAdmin() {
+        try {
+            System.out.println("=== ADMIN: GET ALL CONTACTS REQUEST ===");
+            List<Contact> contacts = contactService.getAllContacts();
+            
+            List<Map<String, Object>> contactList = contacts.stream()
+                .map(contact -> {
+                    Map<String, Object> contactMap = new HashMap<>();
+                    contactMap.put("id", contact.getId());
+                    contactMap.put("firstName", contact.getFirstName());
+                    contactMap.put("lastName", contact.getLastName());
+                    contactMap.put("fullName", contact.getFirstName() + " " + contact.getLastName());
+                    contactMap.put("email", contact.getEmail());
+                    contactMap.put("message", contact.getMessage());
+                    contactMap.put("submittedAt", contact.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                    contactMap.put("submittedDate", contact.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")));
+                    
+                    return contactMap;
+                })
+                .collect(Collectors.toList());
+            
+            System.out.println("Admin: Returning " + contactList.size() + " contacts");
+            return ResponseEntity.ok(contactList);
+            
+        } catch (Exception e) {
+            System.out.println("Exception occurred while fetching contacts for admin: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to fetch contacts: " + e.getMessage()));
+        }
+    }
+    
+    // Delete contact (Admin functionality)
+    @DeleteMapping("/contacts/{id}")
+    public ResponseEntity<?> deleteContactByAdmin(@PathVariable Long id) {
+        try {
+            System.out.println("=== ADMIN: DELETE CONTACT REQUEST ===");
+            System.out.println("Contact ID to delete: " + id);
+            
+            Optional<Contact> contactOpt = contactService.getContactById(id);
+            if (contactOpt.isEmpty()) {
+                System.out.println("Contact not found with ID: " + id);
+                return ResponseEntity.badRequest().body(Map.of("error", "Contact not found"));
+            }
+            
+            Contact contact = contactOpt.get();
+            System.out.println("Found contact to delete: " + contact.getFirstName() + " " + contact.getLastName() + " (" + contact.getEmail() + ")");
+            
+            boolean deleted = contactService.deleteContact(id);
+            if (deleted) {
+                System.out.println("Contact deleted successfully by admin");
+                return ResponseEntity.ok(Map.of("message", "Contact deleted successfully"));
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("error", "Failed to delete contact"));
+            }
+            
+        } catch (Exception e) {
+            System.out.println("Exception occurred while deleting contact: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to delete contact: " + e.getMessage()));
+        }
+    }
+    
+    // Get contact statistics
+    @GetMapping("/contacts/stats")
+    public ResponseEntity<?> getContactStats() {
+        try {
+            System.out.println("=== ADMIN: GET CONTACT STATISTICS ===");
+            List<Contact> allContacts = contactService.getAllContacts();
+            
+            // Calculate statistics
+            int totalContacts = allContacts.size();
+            
+            // Contacts today
+            long contactsToday = allContacts.stream()
+                .filter(contact -> contact.getCreatedAt().toLocalDate().equals(java.time.LocalDate.now()))
+                .count();
+            
+            // Contacts this week
+            java.time.LocalDate weekAgo = java.time.LocalDate.now().minusWeeks(1);
+            long contactsThisWeek = allContacts.stream()
+                .filter(contact -> contact.getCreatedAt().toLocalDate().isAfter(weekAgo))
+                .count();
+            
+            // Contacts this month
+            java.time.LocalDate monthAgo = java.time.LocalDate.now().minusMonths(1);
+            long contactsThisMonth = allContacts.stream()
+                .filter(contact -> contact.getCreatedAt().toLocalDate().isAfter(monthAgo))
+                .count();
+            
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("totalContacts", totalContacts);
+            stats.put("contactsToday", contactsToday);
+            stats.put("contactsThisWeek", contactsThisWeek);
+            stats.put("contactsThisMonth", contactsThisMonth);
+            stats.put("lastUpdated", java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            
+            System.out.println("Contact stats: Total=" + totalContacts + ", Today=" + contactsToday + 
+                             ", This Week=" + contactsThisWeek + ", This Month=" + contactsThisMonth);
+            
+            return ResponseEntity.ok(stats);
+            
+        } catch (Exception e) {
+            System.out.println("Exception occurred while calculating contact stats: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to calculate contact statistics: " + e.getMessage()));
+        }
+    }
+    
+    // ========== EMAIL NOTIFICATION ENDPOINTS ==========
+    
+    // Test email configuration
+    @PostMapping("/test-email")
+    public ResponseEntity<?> testEmail(@RequestBody(required = false) Map<String, String> emailData) {
+        try {
+            System.out.println("=== ADMIN: TEST EMAIL REQUEST ===");
+            
+            String testEmail = emailData != null ? emailData.get("email") : null;
+            if (testEmail == null || testEmail.trim().isEmpty()) {
+                testEmail = "admin@wegavilla.com"; // Default test email
+            }
+            
+            System.out.println("Testing email to: " + testEmail);
+            
+            // Send test email
+            emailService.sendSimpleEmail(testEmail, 
+                "Email Test - Wega Villa Admin Panel", 
+                "This is a test email sent from the Wega Villa Admin Panel.\n\n" +
+                "If you receive this email, your email configuration is working correctly!\n\n" +
+                "Timestamp: " + java.time.LocalDateTime.now() + "\n\n" +
+                "Best regards,\nWega Villa Admin System");
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Test email sent successfully");
+            response.put("sentTo", testEmail);
+            response.put("timestamp", java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            
+            System.out.println("Test email sent successfully to: " + testEmail);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.out.println("Exception occurred while sending test email: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to send test email: " + e.getMessage()));
+        }
+    }
+    
+    // Get email notification settings
+    @GetMapping("/email-settings")
+    public ResponseEntity<?> getEmailSettings() {
+        try {
+            System.out.println("=== ADMIN: GET EMAIL SETTINGS REQUEST ===");
+            
+            // Get all admins and managers who will receive notifications
+            List<User> admins = userRepository.findByRoleName("ADMIN");
+            List<User> managers = userRepository.findByRoleName("MANAGER");
+            
+            List<String> adminEmails = admins.stream().map(User::getEmail).toList();
+            List<String> managerEmails = managers.stream().map(User::getEmail).toList();
+            
+            Map<String, Object> settings = new HashMap<>();
+            settings.put("emailEnabled", true); // This should come from configuration
+            settings.put("adminEmails", adminEmails);
+            settings.put("managerEmails", managerEmails);
+            settings.put("totalRecipients", adminEmails.size() + managerEmails.size());
+            settings.put("lastChecked", java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            
+            System.out.println("Email settings: " + adminEmails.size() + " admins, " + managerEmails.size() + " managers");
+            return ResponseEntity.ok(settings);
+            
+        } catch (Exception e) {
+            System.out.println("Exception occurred while getting email settings: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to get email settings: " + e.getMessage()));
+        }
+    }
+    
+    // Manually send notification for an existing contact
+    @PostMapping("/contacts/{id}/notify")
+    public ResponseEntity<?> resendContactNotification(@PathVariable Long id) {
+        try {
+            System.out.println("=== ADMIN: RESEND CONTACT NOTIFICATION ===");
+            System.out.println("Contact ID: " + id);
+            
+            Optional<Contact> contactOpt = contactService.getContactById(id);
+            if (contactOpt.isEmpty()) {
+                System.out.println("Contact not found with ID: " + id);
+                return ResponseEntity.badRequest().body(Map.of("error", "Contact not found"));
+            }
+            
+            Contact contact = contactOpt.get();
+            System.out.println("Resending notification for contact: " + contact.getFirstName() + " " + contact.getLastName());
+            
+            // Send email notifications
+            emailService.sendContactNotification(contact);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Notification sent successfully");
+            response.put("contactId", id);
+            response.put("contactName", contact.getFirstName() + " " + contact.getLastName());
+            response.put("sentAt", java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            
+            System.out.println("Contact notification resent successfully");
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.out.println("Exception occurred while resending contact notification: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to resend notification: " + e.getMessage()));
         }
     }
 }

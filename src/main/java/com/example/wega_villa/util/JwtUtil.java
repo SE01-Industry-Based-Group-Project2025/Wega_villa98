@@ -13,7 +13,7 @@ import java.util.function.Function;
 
 @Component
 public class JwtUtil {
-    private final String SECRET_KEY = "your_secret_key_must_be_at_least_256_bits_for_hs256_algorithm_security";
+    private final String SECRET_KEY = "fyCdytuXNrNKzH8p3sAigICsLk/rQwYW9Z8J3iPP6yc=";
     private final long EXPIRATION_TIME = 1000 * 60 * 60 * 10; // 10 hours
     
     private SecretKey getSigningKey() {

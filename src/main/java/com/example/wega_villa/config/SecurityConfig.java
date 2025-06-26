@@ -52,7 +52,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        // Allow specific origins for better security
+        configuration.setAllowedOrigins(Arrays.asList(
+            "http://localhost:3000",    // React development
+            "http://localhost:3001",    // Alternative React port
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001"
+        ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
@@ -69,12 +75,16 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Allow REST API endpoints
                 .requestMatchers("/api/auth/**").permitAll()
+                // Allow contact submission endpoint for public access
+                .requestMatchers("/api/contact/**").permitAll()
+                // Allow static resources and HTML templates
+                .requestMatchers("/css/**", "/js/**", "/images/**").permitAll()
+                .requestMatchers("/*.html").permitAll()
+                .requestMatchers("/").permitAll()
                 // Allow profile endpoints for all authenticated users
                 .requestMatchers("/api/profile/**").authenticated()
                 // Allow admin endpoints (temporarily for testing)
                 .requestMatchers("/api/admin/**").authenticated()
-                // Allow static resources
-                .requestMatchers("/css/**", "/js/**", "/images/**").permitAll()
                 .requestMatchers("/api/manager/**").authenticated()
                 .requestMatchers("/api/guide/**").authenticated()
                 .requestMatchers("/api/user/**").authenticated()

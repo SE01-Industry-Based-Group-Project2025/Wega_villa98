@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Email Management | Wega Villa</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover { background-color: #0056b3; }
+        .btn-success { background-color: #28a745; }
+        .btn-success:hover { background-color: #1e7e34; }
+        .btn-danger { background-color: #dc3545; }
+        .btn-danger:hover { background-color: #c82333; }
+        .btn-warning { background-color: #ffc107; color: #212529; }
+        .btn-warning:hover { background-color: #e0a800; }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="email"], input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        
+        .message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #b6e7ef;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .stat-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .contacts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .contacts-table th, .contacts-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        .contacts-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .contacts-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .email-list {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .email-item {
+            background: white;
+            padding: 5px 10px;
+            margin: 2px 0;
+            border-radius: 3px;
+            border-left: 3px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏨 Wega Villa - Admin Panel</h1>
+            <h2>📧 Email Management & Contact Notifications</h2>
+        </div>
+
+        <div id="message"></div>
+
+        <!-- Email Settings Card -->
+        <div class="card">
+            <h3>📋 Email Notification Settings</h3>
+            <div id="emailSettings">
+                <div class="loading">Loading email settings...</div>
+            </div>
+        </div>
+
+        <!-- Test Email Card -->
+        <div class="card">
+            <h3>🧪 Test Email Configuration</h3>
+            <p>Send a test email to verify your email configuration is working correctly.</p>
+            <div class="form-group">
+                <label for="testEmail">Test Email Address:</label>
+                <input type="email" id="testEmail" placeholder="Enter email address to test" value="admin@wegavilla.com">
+            </div>
+            <button class="btn btn-warning" onclick="sendTestEmail()">Send Test Email</button>
+        </div>
+
+        <!-- Contact Statistics Card -->
+        <div class="card">
+            <h3>📊 Contact Statistics</h3>
+            <div id="contactStats">
+                <div class="loading">Loading contact statistics...</div>
+            </div>
+        </div>
+
+        <!-- Recent Contacts Card -->
+        <div class="card">
+            <h3>📝 Recent Contact Submissions</h3>
+            <button class="btn" onclick="loadContacts()">Refresh Contacts</button>
+            <div id="contactsList">
+                <div class="loading">Loading contacts...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api/admin';
+
+        // Load page data
+        document.addEventListener('DOMContentLoaded', function() {
+            loadEmailSettings();
+            loadContactStats();
+            loadContacts();
+        });
+
+        // Load email settings
+        async function loadEmailSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/email-settings`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayEmailSettings(data);
+                } else {
+                    document.getElementById('emailSettings').innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('emailSettings').innerHTML = `<div class="error">Failed to load email settings: ${error.message}</div>`;
+            }
+        }
+
+        // Display email settings
+        function displayEmailSettings(data) {
+            const html = `
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-number">${data.totalRecipients}</div>
+                        <div>Total Recipients</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${data.adminEmails.length}</div>
+                        <div>Admins</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${data.managerEmails.length}</div>
+                        <div>Managers</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <h4>👑 Admin Email Recipients:</h4>
+                    <div class="email-list">
+                        ${data.adminEmails.length > 0 ? 
+                            data.adminEmails.map(email => `<div class="email-item">📧 ${email}</div>`).join('') :
+                            '<div class="email-item">No admins found</div>'
+                        }
+                    </div>
+                    
+                    <h4>👔 Manager Email Recipients:</h4>
+                    <div class="email-list">
+                        ${data.managerEmails.length > 0 ? 
+                            data.managerEmails.map(email => `<div class="email-item">📧 ${email}</div>`).join('') :
+                            '<div class="email-item">No managers found</div>'
+                        }
+                    </div>
+                </div>
+                
+                <p><small>Last updated: ${data.lastChecked}</small></p>
+            `;
+            document.getElementById('emailSettings').innerHTML = html;
+        }
+
+        // Send test email
+        async function sendTestEmail() {
+            const email = document.getElementById('testEmail').value.trim();
+            if (!email) {
+                showMessage('Please enter an email address', 'error');
+                return;
+            }
+
+            try {
+                showMessage('Sending test email...', 'info');
+                
+                const response = await fetch(`${API_BASE}/test-email`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email: email })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(`Test email sent successfully to ${result.sentTo}!`, 'success');
+                } else {
+                    showMessage(`Failed to send test email: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Load contact statistics
+        async function loadContactStats() {
+            try {
+                const response = await fetch(`${API_BASE}/contacts/stats`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayContactStats(data);
+                } else {
+                    document.getElementById('contactStats').innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('contactStats').innerHTML = `<div class="error">Failed to load contact stats: ${error.message}</div>`;
+            }
+        }
+
+        // Display contact statistics
+        function displayContactStats(data) {
+            const html = `
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-number">${data.totalContacts}</div>
+                        <div>Total Contacts</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${data.contactsToday}</div>
+                        <div>Today</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${data.contactsThisWeek}</div>
+                        <div>This Week</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${data.contactsThisMonth}</div>
+                        <div>This Month</div>
+                    </div>
+                </div>
+                <p><small>Last updated: ${data.lastUpdated}</small></p>
+            `;
+            document.getElementById('contactStats').innerHTML = html;
+        }
+
+        // Load contacts
+        async function loadContacts() {
+            try {
+                document.getElementById('contactsList').innerHTML = '<div class="loading">Loading contacts...</div>';
+                
+                const response = await fetch(`${API_BASE}/contacts`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayContacts(data);
+                } else {
+                    document.getElementById('contactsList').innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('contactsList').innerHTML = `<div class="error">Failed to load contacts: ${error.message}</div>`;
+            }
+        }
+
+        // Display contacts
+        function displayContacts(contacts) {
+            if (contacts.length === 0) {
+                document.getElementById('contactsList').innerHTML = '<p>No contacts found.</p>';
+                return;
+            }
+
+            const html = `
+                <table class="contacts-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Submitted</th>
+                            <th>Message Preview</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${contacts.slice(0, 10).map(contact => `
+                            <tr>
+                                <td>#${contact.id}</td>
+                                <td>${contact.fullName}</td>
+                                <td>${contact.email}</td>
+                                <td>${contact.submittedDate}</td>
+                                <td>${contact.message.substring(0, 100)}${contact.message.length > 100 ? '...' : ''}</td>
+                                <td>
+                                    <button class="btn btn-success" onclick="resendNotification(${contact.id})">
+                                        🔔 Resend
+                                    </button>
+                                    <button class="btn btn-danger" onclick="deleteContact(${contact.id})">
+                                        🗑️ Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ${contacts.length > 10 ? `<p><em>Showing first 10 of ${contacts.length} contacts</em></p>` : ''}
+            `;
+            document.getElementById('contactsList').innerHTML = html;
+        }
+
+        // Resend notification for a contact
+        async function resendNotification(contactId) {
+            try {
+                showMessage('Resending notification...', 'info');
+                
+                const response = await fetch(`${API_BASE}/contacts/${contactId}/notify`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(`Notification resent successfully for ${result.contactName}!`, 'success');
+                } else {
+                    showMessage(`Failed to resend notification: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Delete contact
+        async function deleteContact(contactId) {
+            if (!confirm('Are you sure you want to delete this contact?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/contacts/${contactId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage('Contact deleted successfully!', 'success');
+                    loadContacts(); // Refresh the list
+                    loadContactStats(); // Refresh stats
+                } else {
+                    showMessage(`Failed to delete contact: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Show message
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = 'message ' + type;
+            messageDiv.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
