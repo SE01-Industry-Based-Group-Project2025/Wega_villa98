@@ -13,6 +13,7 @@ import Event from "./pages/EventBooking";
 import Contact from "./pages/Contact";
 import AdminDashboard from "./pages/AdminDashboard";
 import GuideDashboard from "./pages/GuideDashboard";
+import Facilities from "./pages/Facilities";
 
 
 // Protected Route Component for Admin and Manager
@@ -49,6 +50,7 @@ function App() {
         <Route path="/auth" element={<Log />} />        
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/about" element={<About />} />
+        <Route path="/facilities" element={<Facilities />} />
         <Route path="/event-booking" element={<Event/>} />
         <Route path="/rooms-booking" element={<Room />} />
         <Route path="/contact" element={<Contact />} />

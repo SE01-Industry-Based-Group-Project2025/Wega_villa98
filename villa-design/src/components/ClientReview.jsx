@@ -19,7 +19,7 @@ const ClientReviews = () => {
       date: "03 March 2023",
       rating: 4,
       comment:
-        "If everything I did failed - which it doesn't, it actually succeeds - just the fact that I'm willing to fail is an inspiration. People are so scared to lose that they don't even try..."
+        "this is the first time i came to the Sri Lanka and i had a great time with the people and the culture. The food was amazing and the hospitality was top-notch. I would definitely recommend this place to anyone looking for a great vacation.",
     },
   ]);
   const [newReview, setNewReview] = useState({ name: "", rating: 0, comment: "" });

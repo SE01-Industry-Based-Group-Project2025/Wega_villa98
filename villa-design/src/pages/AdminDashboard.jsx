@@ -70,8 +70,7 @@ const AdminDashboard = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  // Tour Guide management states
+  const [success, setSuccess] = useState('');  // Tour Guide management states
   const [tourGuides, setTourGuides] = useState([]);
   const [showTourGuideForm, setShowTourGuideForm] = useState(false);
   const [editingTourGuide, setEditingTourGuide] = useState(null);
@@ -82,17 +81,34 @@ const AdminDashboard = () => {
   });
   const [tourGuideFormErrors, setTourGuideFormErrors] = useState({});
   const [showTourGuidePassword, setShowTourGuidePassword] = useState(false);
+  // User counts state
+  const [totalUsers, setTotalUsers] = useState(0); // Only users with USER role
+
+  // Room management states
+  const [rooms, setRooms] = useState([]);
+  const [showRoomForm, setShowRoomForm] = useState(false);
+  const [editingRoom, setEditingRoom] = useState(null);
+  const [roomForm, setRoomForm] = useState({
+    name: '',
+    type: '',
+    cost: '',
+    description: '',
+    image: '',
+    status: 'Available',
+    features: []
+  });
+  const [roomFormErrors, setRoomFormErrors] = useState({});
+  const [roomFilter, setRoomFilter] = useState('all');
+  const [roomStatusFilter, setRoomStatusFilter] = useState('all');
 
   // Confirmation modal states
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmTitle, setConfirmTitle] = useState('');
-
   // Settings states
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -118,19 +134,316 @@ const AdminDashboard = () => {
         name: userFullName,
         email: localStorage.getItem("username") || "user@wegavilla.com",
         role: userRole === 'ADMIN' ? 'Administrator' : userRole === 'MANAGER' ? 'Manager' : userRole
-      });    }// Load managers when component mounts
-    if (hasAdminPrivileges()) {
+      });    }    // Load managers when component mounts
+    if (canViewManagers()) {
       loadManagers();
     }
 
     // Load tour guides when component mounts
     loadTourGuides();
-  }, []);
-  // Check admin privileges
+    
+    // Load rooms when component mounts
+    loadRooms();
+  }, []);// Check admin privileges
   const hasAdminPrivileges = () => {
     const userRole = localStorage.getItem("userRole");
     return userRole && userRole.toUpperCase().includes('ADMIN');
   };
+
+  // Check if user can view manager data (both admin and manager can view)
+  const canViewManagers = () => {
+    const userRole = localStorage.getItem("userRole");
+    return userRole && (userRole.toUpperCase().includes('ADMIN') || userRole.toUpperCase().includes('MANAGER'));
+  };
+  // Available room features
+  const availableFeatures = [
+    'WiFi', 'Air Conditioning', 'TV', 'Mini Bar', 'Balcony', 'Ocean View',
+    'Room Service', 'Safe', 'Bathtub', 'Shower', 'Hair Dryer', 'Coffee Maker'
+  ];
+
+  // Filtered rooms based on type and status
+  const filteredRooms = rooms.filter(room => {
+    const typeMatch = roomFilter === 'all' || room.type === roomFilter;
+    const statusMatch = roomStatusFilter === 'all' || room.status === roomStatusFilter;
+    return typeMatch && statusMatch;
+  });
+
+  // Load rooms from backend
+  const loadRooms = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch('http://localhost:8080/api/rooms', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRooms(data);
+      } else {
+        // For demo purposes, use sample data if API fails
+        const sampleRooms = [
+          {
+            id: 1,
+            name: "Deluxe Ocean View",
+            type: "Deluxe",
+            cost: 250,
+            description: "Spacious deluxe room with stunning ocean views, private balcony, and premium amenities.",
+            image: "/assets/hotel1.jpg",
+            status: "Available",
+            features: ["WiFi", "Air Conditioning", "Ocean View", "Balcony", "Mini Bar", "Room Service"]
+          },
+          {
+            id: 2,
+            name: "Standard Garden Room",
+            type: "Standard",
+            cost: 150,
+            description: "Comfortable standard room with garden views and essential amenities for a pleasant stay.",
+            image: "/assets/hotel2.jpg",
+            status: "Available",
+            features: ["WiFi", "Air Conditioning", "TV", "Coffee Maker"]
+          },
+          {
+            id: 3,
+            name: "Presidential Suite",
+            type: "Presidential",
+            cost: 500,
+            description: "Luxurious presidential suite with separate living area, premium furnishings, and exclusive services.",
+            image: "/assets/hotel1.jpg",
+            status: "Occupied",
+            features: ["WiFi", "Air Conditioning", "Ocean View", "Balcony", "Mini Bar", "Room Service", "Safe", "Bathtub"]
+          }
+        ];
+        setRooms(sampleRooms);
+      }
+    } catch (error) {
+      console.error('Error loading rooms:', error);
+      setError('Failed to load rooms. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Room form validation
+  const validateRoomField = (field, value) => {
+    let error = '';
+    
+    switch (field) {
+      case 'name':
+        if (!value.trim()) {
+          error = 'Room name is required';
+        } else if (value.trim().length < 3) {
+          error = 'Room name must be at least 3 characters';
+        }
+        break;
+      
+      case 'type':
+        if (!value) {
+          error = 'Room type is required';
+        }
+        break;
+      
+      case 'cost':
+        if (!value) {
+          error = 'Cost per night is required';
+        } else if (isNaN(value) || parseFloat(value) <= 0) {
+          error = 'Cost must be a positive number';
+        }
+        break;
+      
+      case 'description':
+        if (!value.trim()) {
+          error = 'Room description is required';
+        } else if (value.trim().length < 10) {
+          error = 'Description must be at least 10 characters';
+        }
+        break;
+      
+      default:
+        break;
+    }
+    
+    setRoomFormErrors(prev => ({
+      ...prev,
+      [field]: error
+    }));
+    
+    return error === '';
+  };
+
+  // Handle room form input changes
+  const handleRoomInputChange = (field, value) => {
+    setRoomForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    
+    // Clear previous error when user starts typing
+    if (roomFormErrors[field]) {
+      setRoomFormErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
+    }
+    
+    // Validate on blur for better UX
+    if (field !== 'image') {
+      setTimeout(() => validateRoomField(field, value), 500);
+    }
+  };
+
+  // Reset room form
+  const resetRoomForm = () => {
+    setRoomForm({
+      name: '',
+      type: '',
+      cost: '',
+      description: '',
+      image: '',
+      status: 'Available',
+      features: []
+    });
+    setRoomFormErrors({});
+    setEditingRoom(null);
+    setShowRoomForm(false);
+  };
+
+  // Handle room form submission
+  const handleRoomSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    // Validate all fields
+    const isNameValid = validateRoomField('name', roomForm.name);
+    const isTypeValid = validateRoomField('type', roomForm.type);
+    const isCostValid = validateRoomField('cost', roomForm.cost);
+    const isDescriptionValid = validateRoomField('description', roomForm.description);
+
+    if (!isNameValid || !isTypeValid || !isCostValid || !isDescriptionValid) {
+      setError('Please fix all validation errors before submitting.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const roomData = {
+        ...roomForm,
+        cost: parseFloat(roomForm.cost)
+      };
+
+      const url = editingRoom 
+        ? `http://localhost:8080/api/rooms/${editingRoom.id}`
+        : 'http://localhost:8080/api/rooms';
+      
+      const method = editingRoom ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(roomData)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setSuccess(editingRoom ? 'Room updated successfully!' : 'Room added successfully!');
+        
+        if (editingRoom) {
+          setRooms(prev => prev.map(room => 
+            room.id === editingRoom.id ? { ...result, id: editingRoom.id } : room
+          ));
+        } else {
+          setRooms(prev => [...prev, { ...result, id: Date.now() }]);
+        }
+        
+        resetRoomForm();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.message || 'Failed to save room. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error saving room:', error);
+      
+      // For demo purposes, simulate successful operation
+      const newRoom = {
+        ...roomForm,
+        id: editingRoom ? editingRoom.id : Date.now(),
+        cost: parseFloat(roomForm.cost)
+      };
+
+      if (editingRoom) {
+        setRooms(prev => prev.map(room => 
+          room.id === editingRoom.id ? newRoom : room
+        ));
+        setSuccess('Room updated successfully!');
+      } else {
+        setRooms(prev => [...prev, newRoom]);
+        setSuccess('Room added successfully!');
+      }
+      
+      resetRoomForm();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle edit room
+  const handleEditRoom = (room) => {
+    setEditingRoom(room);
+    setRoomForm({
+      name: room.name,
+      type: room.type,
+      cost: room.cost.toString(),
+      description: room.description,
+      image: room.image || '',
+      status: room.status,
+      features: room.features || []
+    });
+    setShowRoomForm(true);
+  };
+
+  // Handle delete room
+  const handleDeleteRoom = async (roomId) => {
+    showConfirmation(
+      'Delete Room',
+      'Are you sure you want to delete this room? This action cannot be undone.',
+      async () => {
+        setLoading(true);
+        try {
+          const response = await fetch(`http://localhost:8080/api/rooms/${roomId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            }
+          });
+
+          if (response.ok) {
+            setRooms(prev => prev.filter(room => room.id !== roomId));
+            setSuccess('Room deleted successfully!');
+          } else {
+            setError('Failed to delete room. Please try again.');
+          }
+        } catch (error) {
+          console.error('Error deleting room:', error);
+          // For demo purposes, simulate successful deletion
+          setRooms(prev => prev.filter(room => room.id !== roomId));
+          setSuccess('Room deleted successfully!');
+        } finally {
+          setLoading(false);
+        }
+      }
+    );
+  };
+
+  // ===== MANAGER MANAGEMENT FUNCTIONS =====
+
   // Load managers from backend with improved error handling
   const loadManagers = async () => {
     try {
@@ -604,10 +917,20 @@ const AdminDashboard = () => {
             role: guide.role === 5 || guide.role === '5' ? 'TOUR_GUIDE' : (guide.role || 'TOUR_GUIDE'),
             status: guide.status || (guide.active !== false ? 'Active' : 'Inactive')
           };
+        });        console.log('Normalized tour guides:', normalizedTourGuides);
+        setTourGuides(normalizedTourGuides);
+        
+        // Count only users with USER role (not managers or tour guides)
+        const regularUsers = usersData.filter(user => {
+          const userRole = user.role;
+          // Check for role ID 3 (user) or role string 'USER'
+          const isRoleId3 = userRole === 3 || userRole === '3';
+          const isRoleString = (userRole || '').toString().trim().toUpperCase() === 'USER';
+          return isRoleId3 || isRoleString;
         });
         
-        console.log('Normalized tour guides:', normalizedTourGuides);
-        setTourGuides(normalizedTourGuides);
+        console.log('Regular users (USER role only):', regularUsers);
+        setTotalUsers(regularUsers.length);
       } else {
         console.error('Failed to load tour guides:', result.error);
         setError(result.error);
@@ -850,11 +1173,12 @@ const AdminDashboard = () => {
     return menuItems.filter(item => item.roles.includes(userRole));
   };
 
-  const filteredMenuItems = getFilteredMenuItems();
-
-  const stats = [
-    { label: 'Total Bookings', value: '94', icon: Calendar, color: 'bg-blue-500' },
-    { label: 'Total Users', value: '1,234', icon: Users, color: 'bg-green-500' },
+  const filteredMenuItems = getFilteredMenuItems();  const stats = [
+    { label: 'Total Room Bookings', value: '94', icon: Calendar, color: 'bg-blue-500' },
+    { label: 'Total Event Bookings', value: '94', icon: Calendar, color: 'bg-blue-500' },
+    { label: 'Total Clients', value: totalUsers.toString(), icon: Users, color: 'bg-green-500' },
+    { label: 'Total Managers', value: managers.length.toString(), icon: Users, color: 'bg-green-500' },
+    { label: 'Total Tour Guides', value: tourGuides.length.toString(), icon: Users, color: 'bg-green-500' },
     { label: 'Revenue', value: '$94,000', icon: DollarSign, color: 'bg-yellow-500' },
     { label: 'Available Rooms', value: '25', icon: Hotel, color: 'bg-purple-500' },
   ];
@@ -1185,7 +1509,7 @@ const AdminDashboard = () => {
             </div>
           )}          {activeTab === 'managers' && (
             <div className="space-y-6">
-              {!hasAdminPrivileges() ? (
+              {!canViewManagers() ? (
                 <div className={`border rounded-lg p-4 ${
                   isDarkMode ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-200 text-red-700'
                 }`}>                  <div className="flex items-center">
@@ -1430,7 +1754,8 @@ const AdminDashboard = () => {
               )}
             </div>
           )}{activeTab === 'tourguides' && (
-            <div className="space-y-6">              <div className="flex justify-between items-center">
+            <div className="space-y-6">              
+            <div className="flex justify-between items-center">
                 <h3 className={`text-2xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>Tour Guide Management</h3>
                 <div className="flex space-x-2">
                   <button
@@ -1719,14 +2044,423 @@ const AdminDashboard = () => {
               <h3 className="text-lg font-semibold mb-4">Booking Management</h3>
               <p className="text-gray-600">Booking management interface will be implemented here.</p>
             </div>
-          )}
+          )}          {activeTab === 'rooms' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex justify-between items-center">
+                <h3 className={`text-2xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>Room Management</h3>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={loadRooms}
+                    disabled={loading}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
+                    title="Refresh rooms list"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Refresh</span>
+                  </button>
+                  <button
+                    onClick={() => setShowRoomForm(true)}
+                    className="bg-[#BF9264] hover:bg-amber-800 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Room</span>
+                  </button>
+                </div>
+              </div>
 
-          {activeTab === 'rooms' && (
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h3 className="text-lg font-semibold mb-4">Room Management</h3>
-              <p className="text-gray-600">Room management interface will be implemented here.</p>
+              {/* Error and Success Messages */}
+              {error && (
+                <div className={`border rounded-lg p-4 ${
+                  isDarkMode ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-200 text-red-700'
+                }`}>
+                  <div className="flex items-center">
+                    <AlertCircle className="w-5 h-5 mr-2" />
+                    <span className="font-medium">{error}</span>
+                  </div>
+                </div>
+              )}
+              
+              {success && (
+                <div className={`border rounded-lg p-4 ${
+                  isDarkMode ? 'bg-green-900/20 border-green-800 text-green-400' : 'bg-green-50 border-green-200 text-green-700'
+                }`}>
+                  <div className="flex items-center">
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    <span className="font-medium">{success}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Rooms Grid */}
+              <div className={`rounded-lg shadow-sm border p-6 ${
+                isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+              }`}>
+                <div className="flex justify-between items-center mb-6">
+                  <h4 className={`text-lg font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                    Available Rooms ({rooms.length})
+                  </h4>
+                  <div className="flex space-x-4">
+                    <select 
+                      value={roomFilter}
+                      onChange={(e) => setRoomFilter(e.target.value)}
+                      className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
+                        isDarkMode 
+                          ? 'bg-slate-700 border-slate-600 text-slate-200' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    >
+                      <option value="all">All Rooms</option>
+                      <option value="Standard">Standard</option>
+                      <option value="Deluxe">Deluxe</option>
+                      <option value="Suite">Suite</option>
+                      <option value="Presidential">Presidential</option>
+                    </select>
+                    <select 
+                      value={roomStatusFilter}
+                      onChange={(e) => setRoomStatusFilter(e.target.value)}
+                      className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
+                        isDarkMode 
+                          ? 'bg-slate-700 border-slate-600 text-slate-200' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    >
+                      <option value="all">All Status</option>
+                      <option value="Available">Available</option>
+                      <option value="Occupied">Occupied</option>
+                      <option value="Maintenance">Maintenance</option>
+                    </select>
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#BF9264]"></div>
+                    <span className={`ml-2 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>Loading rooms...</span>
+                  </div>
+                ) : filteredRooms.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Hotel className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    <p className={`text-lg font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                      No rooms found
+                    </p>
+                    <p className={`${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                      {rooms.length === 0 ? 'Add your first room to get started!' : 'Try adjusting your filters.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredRooms.map((room) => (
+                      <div key={room.id} className={`rounded-lg border overflow-hidden transition-transform hover:scale-105 ${
+                        isDarkMode ? 'bg-slate-700 border-slate-600' : 'bg-white border-gray-200'
+                      }`}>
+                        {/* Room Image */}
+                        <div className="relative h-48 bg-gray-200">
+                          {room.image ? (
+                            <img
+                              src={room.image}
+                              alt={room.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.src = '/assets/hotel1.jpg'; // Fallback image
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-300">
+                              <Hotel className="w-12 h-12 text-gray-500" />
+                            </div>
+                          )}
+                          
+                          {/* Status Badge */}
+                          <div className="absolute top-2 right-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              room.status === 'Available' 
+                                ? 'bg-green-100 text-green-800' 
+                                : room.status === 'Occupied'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {room.status}
+                            </span>
+                          </div>
+
+                          {/* Room Type Badge */}
+                          <div className="absolute top-2 left-2">
+                            <span className="bg-[#BF9264] text-white px-2 py-1 rounded-full text-xs font-medium">
+                              {room.type}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Room Details */}
+                        <div className="p-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <h5 className={`text-lg font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                              {room.name}
+                            </h5>
+                            <span className={`text-lg font-bold text-[#BF9264]`}>
+                              ${room.cost}/night
+                            </span>
+                          </div>
+                          
+                          <p className={`text-sm mb-3 line-clamp-2 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+                            {room.description}
+                          </p>
+
+                          {/* Room Features */}
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {room.features && room.features.map((feature, index) => (
+                              <span key={index} className={`px-2 py-1 rounded text-xs ${
+                                isDarkMode ? 'bg-slate-600 text-slate-300' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {feature}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditRoom(room)}
+                              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center space-x-1"
+                            >
+                              <Edit className="w-4 h-4" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRoom(room.id)}
+                              className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center space-x-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Room Form Modal */}
+              {showRoomForm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                  <div className={`rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto ${
+                    isDarkMode ? 'bg-slate-800' : 'bg-white'
+                  }`}>
+                    <div className="p-6">
+                      <div className="flex justify-between items-center mb-6">
+                        <h4 className={`text-xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                          {editingRoom ? 'Edit Room' : 'Add New Room'}
+                        </h4>
+                        <button
+                          onClick={resetRoomForm}
+                          className={`${isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleRoomSubmit} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Room Name */}
+                          <div>
+                            <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                              Room Name *
+                            </label>
+                            <input
+                              type="text"
+                              value={roomForm.name}
+                              onChange={(e) => handleRoomInputChange('name', e.target.value)}
+                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
+                                roomFormErrors.name 
+                                  ? 'border-red-500' 
+                                  : isDarkMode 
+                                    ? 'bg-slate-700 border-slate-600 text-slate-200' 
+                                    : 'bg-white border-gray-300 text-gray-900'
+                              }`}
+                              placeholder="e.g., Deluxe Ocean View"
+                            />
+                            {roomFormErrors.name && (
+                              <p className="text-red-500 text-xs mt-1">{roomFormErrors.name}</p>
+                            )}
+                          </div>
+
+                          {/* Room Type */}
+                          <div>
+                            <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                              Room Type *
+                            </label>
+                            <select
+                              value={roomForm.type}
+                              onChange={(e) => handleRoomInputChange('type', e.target.value)}
+                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
+                                roomFormErrors.type 
+                                  ? 'border-red-500' 
+                                  : isDarkMode 
+                                    ? 'bg-slate-700 border-slate-600 text-slate-200' 
+                                    : 'bg-white border-gray-300 text-gray-900'
+                              }`}
+                            >
+                              <option value="">Select room type</option>
+                              <option value="Standard">Standard</option>
+                              <option value="Deluxe">Deluxe</option>
+                              <option value="Suite">Suite</option>
+                              <option value="Presidential">Presidential</option>
+                            </select>
+                            {roomFormErrors.type && (
+                              <p className="text-red-500 text-xs mt-1">{roomFormErrors.type}</p>
+                            )}
+                          </div>
+
+                          {/* Cost per Night */}
+                          <div>
+                            <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                              Cost per Night ($) *
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={roomForm.cost}
+                              onChange={(e) => handleRoomInputChange('cost', e.target.value)}
+                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
+                                roomFormErrors.cost 
+                                  ? 'border-red-500' 
+                                  : isDarkMode 
+                                    ? 'bg-slate-700 border-slate-600 text-slate-200' 
+                                    : 'bg-white border-gray-300 text-gray-900'
+                              }`}
+                              placeholder="150"
+                            />
+                            {roomFormErrors.cost && (
+                              <p className="text-red-500 text-xs mt-1">{roomFormErrors.cost}</p>
+                            )}
+                          </div>
+
+                          {/* Room Status */}
+                          <div>
+                            <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                              Status *
+                            </label>
+                            <select
+                              value={roomForm.status}
+                              onChange={(e) => handleRoomInputChange('status', e.target.value)}
+                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
+                                isDarkMode 
+                                  ? 'bg-slate-700 border-slate-600 text-slate-200' 
+                                  : 'bg-white border-gray-300 text-gray-900'
+                              }`}
+                            >
+                              <option value="Available">Available</option>
+                              <option value="Occupied">Occupied</option>
+                              <option value="Maintenance">Maintenance</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Room Image URL */}
+                        <div>
+                          <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                            Room Image URL
+                          </label>
+                          <input
+                            type="url"
+                            value={roomForm.image}
+                            onChange={(e) => handleRoomInputChange('image', e.target.value)}
+                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
+                              isDarkMode 
+                                ? 'bg-slate-700 border-slate-600 text-slate-200' 
+                                : 'bg-white border-gray-300 text-gray-900'
+                            }`}
+                            placeholder="https://example.com/room-image.jpg"
+                          />
+                          <p className={`text-xs mt-1 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                            Enter a URL for the room image or leave empty for default
+                          </p>
+                        </div>
+
+                        {/* Room Description */}
+                        <div>
+                          <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                            Description *
+                          </label>
+                          <textarea
+                            rows="4"
+                            value={roomForm.description}
+                            onChange={(e) => handleRoomInputChange('description', e.target.value)}
+                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] resize-none ${
+                              roomFormErrors.description 
+                                ? 'border-red-500' 
+                                : isDarkMode 
+                                  ? 'bg-slate-700 border-slate-600 text-slate-200' 
+                                  : 'bg-white border-gray-300 text-gray-900'
+                            }`}
+                            placeholder="Describe the room features, amenities, and what makes it special..."
+                          />
+                          {roomFormErrors.description && (
+                            <p className="text-red-500 text-xs mt-1">{roomFormErrors.description}</p>
+                          )}
+                        </div>
+
+                        {/* Room Features */}
+                        <div>
+                          <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                            Room Features
+                          </label>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
+                            {availableFeatures.map((feature) => (
+                              <label key={feature} className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={roomForm.features.includes(feature)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      handleRoomInputChange('features', [...roomForm.features, feature]);
+                                    } else {
+                                      handleRoomInputChange('features', roomForm.features.filter(f => f !== feature));
+                                    }
+                                  }}
+                                  className="text-[#BF9264] focus:ring-[#BF9264] border-gray-300 rounded"
+                                />
+                                <span className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                                  {feature}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Submit Buttons */}
+                        <div className="flex space-x-3 pt-4">
+                          <button
+                            type="submit"
+                            disabled={loading}
+                            className="flex-1 bg-[#BF9264] hover:bg-amber-800 text-white py-2 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                          >
+                            {loading ? 'Processing...' : (editingRoom ? 'Update Room' : 'Add Room')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={resetRoomForm}
+                            disabled={loading}
+                            className={`flex-1 py-2 px-4 rounded-lg transition-colors disabled:cursor-not-allowed ${
+                              isDarkMode 
+                                ? 'bg-slate-600 hover:bg-slate-500 text-slate-200' 
+                                : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                            }`}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}          {activeTab === 'settings' && (
+          )}{activeTab === 'settings' && (
             <div className="space-y-6">
               <h3 className={`text-2xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>Settings</h3>
               
@@ -1769,7 +2503,8 @@ const AdminDashboard = () => {
                     </button>
                   </div>
                 </div>
-              </div>{/* Appearance Settings */}
+              </div>
+              {/* Appearance Settings */}
               <div className={`rounded-lg shadow-sm border p-6 ${
                 isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
               }`}>

@@ -149,7 +149,7 @@ const Auth = () => {
         fullName: registerName
       });
         if (result.ok) {
-        console.log('✅ Registration successful');
+        console.log('Registration successful');
         const successMessage = "Registration successful! You can now login.";
         setRegisterSuccess(successMessage);
         showCustomNotification(successMessage, 'success');
@@ -171,12 +171,12 @@ const Auth = () => {
         setTimeout(() => {
           setIsLogin(true);
         }, 2000);      } else {
-        console.error('❌ Registration failed:', result.error);
+        console.error('Registration failed:', result.error);
         setRegisterError(result.error || "Registration failed");
         showApiError(result.error, 'register');
       }
     } catch (err) {
-      console.error('❌ Registration error:', err);
+      console.error('Registration error:', err);
       setRegisterError("Network error: Unable to connect to server");
       showApiError("Network error: Unable to connect to server", 'register');
     }
@@ -187,7 +187,7 @@ const Auth = () => {
     setLoginError("");
     
     try {
-      console.log("🔄 Attempting login with email:", loginEmail);
+      console.log("Attempting login with email:", loginEmail);
       
       const result = await api.post("/api/auth/login", {
         username: loginEmail,
@@ -195,14 +195,14 @@ const Auth = () => {
       });
       
       if (!result.ok) {
-        console.error('❌ Login failed:', result.error);
+        console.error('Login failed:', result.error);
         setLoginError(result.error || "Login failed");
         showApiError(result.error, 'login');
         return;
       }
       
       const data = result.json;
-      console.log("✅ Login successful, response:", data);
+      console.log("Login successful, response:", data);
       
       // Store token
       localStorage.setItem("token", data.token);
@@ -268,7 +268,7 @@ const Auth = () => {
         navigate('/');
       }
     } catch (err) {
-      console.error("❌ Login error:", err);
+      console.error("Login error:", err);
       setLoginError("Network error");
       showApiError("Network error: Unable to connect to server", 'login');
     }
