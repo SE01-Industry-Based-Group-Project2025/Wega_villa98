@@ -3,13 +3,17 @@ package com.example.wega_villa.controller;
 import com.example.wega_villa.model.User;
 import com.example.wega_villa.model.Role;
 import com.example.wega_villa.model.Contact;
+import com.example.wega_villa.model.EventBooking;
+import com.example.wega_villa.model.BookingStatus;
 import com.example.wega_villa.service.UserService;
 import com.example.wega_villa.service.ContactService;
 import com.example.wega_villa.service.EmailService;
+import com.example.wega_villa.service.EventBookingService;
 import com.example.wega_villa.repository.UserRepository;
 import com.example.wega_villa.repository.RoleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -33,6 +37,9 @@ public class AdminController {
 
     @Autowired
     private EmailService emailService;
+    
+    @Autowired
+    private EventBookingService eventBookingService;
 
     // Create a new manager
     @PostMapping("/managers")
@@ -268,6 +275,7 @@ public class AdminController {
     // ========== TOUR GUIDE MANAGEMENT ENDPOINTS ==========
     
     // Create a new tour guide
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @PostMapping("/tour-guides")
     public ResponseEntity<?> createTourGuide(@RequestBody Map<String, String> guideData) {
         try {
@@ -319,6 +327,7 @@ public class AdminController {
             return ResponseEntity.badRequest().body(Map.of("error", "Failed to create tour guide: " + e.getMessage()));
         }
     }    // Get all tour guides
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @GetMapping("/tour-guides")
     public ResponseEntity<?> getAllTourGuides() {        try {
             System.out.println("=== GET ALL TOUR GUIDES REQUEST ===");
@@ -350,6 +359,7 @@ public class AdminController {
     }
 
     // Update tour guide
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @PutMapping("/tour-guides/{id}")
     public ResponseEntity<?> updateTourGuide(@PathVariable Long id, @RequestBody Map<String, String> guideData) {
         try {
@@ -404,6 +414,7 @@ public class AdminController {
     }
 
     // Delete tour guide
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @DeleteMapping("/tour-guides/{id}")
     public ResponseEntity<?> deleteTourGuide(@PathVariable Long id) {
         try {
@@ -691,6 +702,133 @@ public class AdminController {
             System.out.println("Exception occurred while resending contact notification: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of("error", "Failed to resend notification: " + e.getMessage()));
+        }
+    }
+    
+    // === EVENT BOOKING MANAGEMENT ENDPOINTS ===
+    
+    // Get all bookings (admin only)
+    @GetMapping("/bookings")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getAllBookings() {
+        try {
+            List<EventBooking> bookings = eventBookingService.getAllBookings();
+            Map<String, Object> response = new HashMap<>();
+            response.put("bookings", bookings);
+            response.put("totalBookings", bookings.size());
+            response.put("status", "success");
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to get bookings"));
+        }
+    }
+    
+    // Get booking by ID (admin only)
+    @GetMapping("/bookings/{bookingId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getBookingById(@PathVariable Long bookingId) {
+        try {
+            Optional<EventBooking> bookingOpt = eventBookingService.getBookingById(bookingId);
+            
+            if (bookingOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            return ResponseEntity.ok(Map.of("booking", bookingOpt.get(), "status", "success"));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to get booking"));
+        }
+    }
+    
+    // Update booking status (admin only)
+    @PutMapping("/bookings/{bookingId}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateBookingStatus(@PathVariable Long bookingId, 
+                                               @RequestBody Map<String, String> statusUpdate) {
+        try {
+            String statusStr = statusUpdate.get("status");
+            if (statusStr == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Status is required"));
+            }
+            
+            BookingStatus newStatus;
+            try {
+                newStatus = BookingStatus.valueOf(statusStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid status: " + statusStr));
+            }
+            
+            EventBooking updatedBooking = eventBookingService.updateBookingStatus(bookingId, newStatus);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("booking", updatedBooking);
+            response.put("status", "success");
+            response.put("message", "Booking status updated successfully");
+            
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to update booking status"));
+        }
+    }
+    
+    // Get bookings by status (admin only)
+    @GetMapping("/bookings/status/{status}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getBookingsByStatus(@PathVariable String status) {
+        try {
+            BookingStatus bookingStatus;
+            try {
+                bookingStatus = BookingStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid status: " + status));
+            }
+            
+            List<EventBooking> bookings = eventBookingService.getBookingsByStatus(bookingStatus);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("bookings", bookings);
+            response.put("status", "success");
+            response.put("filterStatus", status);
+            response.put("count", bookings.size());
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to get bookings by status"));
+        }
+    }
+    
+    // Get booking statistics (admin only)
+    @GetMapping("/bookings/stats")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getBookingStatistics() {
+        try {
+            Map<String, Object> stats = eventBookingService.getBookingStatistics();
+            stats.put("status", "success");
+            
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to get booking statistics"));
+        }
+    }
+    
+    // Get upcoming bookings (admin only)
+    @GetMapping("/bookings/upcoming")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getUpcomingBookings() {
+        try {
+            List<EventBooking> bookings = eventBookingService.getUpcomingBookings();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("bookings", bookings);
+            response.put("count", bookings.size());
+            response.put("status", "success");
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to get upcoming bookings"));
         }
     }
 }

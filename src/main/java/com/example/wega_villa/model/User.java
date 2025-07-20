@@ -5,7 +5,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -26,42 +25,13 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private String password;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private UserStatus status = UserStatus.ACTIVE;
-
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    @Column(name = "deactivated_at")
-    private LocalDateTime deactivatedAt;
-
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "user_roles",
         joinColumns = @JoinColumn(name = "user_id"),
         inverseJoinColumns = @JoinColumn(name = "role_id")
     )
-    private Set<Role> roles = new HashSet<>();
-
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
-
-    // Enum for user status
-    public enum UserStatus {
-        ACTIVE, INACTIVE, DEACTIVATED
-    }    // Getters and setters
+    private Set<Role> roles = new HashSet<>();    // Getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
       @Override
@@ -80,37 +50,6 @@ public class User implements UserDetails {
     
     public Set<Role> getRoles() { return roles; }
     public void setRoles(Set<Role> roles) { this.roles = roles; }
-
-    public UserStatus getStatus() { return status; }
-    public void setStatus(UserStatus status) { this.status = status; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
-
-    public LocalDateTime getDeactivatedAt() { return deactivatedAt; }
-    public void setDeactivatedAt(LocalDateTime deactivatedAt) { this.deactivatedAt = deactivatedAt; }
-
-    // Method to deactivate user (soft delete)
-    public void deactivate() {
-        this.status = UserStatus.DEACTIVATED;
-        this.deactivatedAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    // Method to reactivate user
-    public void reactivate() {
-        this.status = UserStatus.ACTIVE;
-        this.deactivatedAt = null;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    // Check if user is active
-    public boolean isActive() {
-        return this.status == UserStatus.ACTIVE;
-    }
 
     // UserDetails implementation
     @Override
@@ -141,7 +80,5 @@ public class User implements UserDetails {
     public boolean isCredentialsNonExpired() { return true; }
 
     @Override
-    public boolean isEnabled() { 
-        return this.status == UserStatus.ACTIVE; // Only active users are enabled
-    }
+    public boolean isEnabled() { return true; }
 }

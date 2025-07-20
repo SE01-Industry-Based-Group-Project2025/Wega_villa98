@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Booking - Wega Villa</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .login-section {
+            background-color: #fff3cd;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #ffeaa7;
+        }
+        .login-form {
+            display: grid;
+            gap: 15px;
+            max-width: 400px;
+        }
+        .login-form input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .login-btn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .auth-section {
+            background-color: #e7f3ff;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .auth-status {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .auth-success {
+            color: #4CAF50;
+        }
+        .auth-error {
+            color: #f44336;
+        }
+        .message {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #ebccd1;
+        }
+        .required {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 Event Booking - Wega Villa</h1>
+        
+        <div class="auth-section">
+            <div id="authStatus" class="auth-status">Checking authentication...</div>
+            <div id="loginSection" style="display: none;">
+                <h3>Please Login</h3>
+                <div class="login-form">
+                    <input type="email" id="loginEmail" placeholder="Email" required>
+                    <input type="password" id="loginPassword" placeholder="Password" required>
+                    <button type="button" class="login-btn" onclick="handleLogin()">Login</button>
+                </div>
+            </div>
+            <div id="userInfo" style="display: none;">
+                <p><strong>User:</strong> <span id="userName"></span></p>
+                <p><strong>Email:</strong> <span id="userEmail"></span></p>
+                <button type="button" class="logout-btn" onclick="handleLogout()">Logout</button>
+            </div>
+        </div>
+
+        <div id="messageArea"></div>
+
+        <form id="bookingForm" style="display: none;">
+            <div class="form-group">
+                <label for="packageId">Package ID <span class="required">*</span></label>
+                <select id="packageId" name="packageId" required>
+                    <option value="">Select a package</option>
+                    <option value="birthday-classic">Birthday Classic</option>
+                    <option value="birthday-premium">Birthday Premium</option>
+                    <option value="pool-luxury">Pool Luxury</option>
+                    <option value="wedding-basic">Wedding Basic</option>
+                    <option value="wedding-premium">Wedding Premium</option>
+                    <option value="corporate-meeting">Corporate Meeting</option>
+                    <option value="anniversary-special">Anniversary Special</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="packageName">Package Name <span class="required">*</span></label>
+                <input type="text" id="packageName" name="packageName" required readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="customerPhone">Customer Phone <span class="required">*</span></label>
+                <input type="tel" id="customerPhone" name="customerPhone" 
+                       placeholder="e.g., +1234567890" required>
+            </div>
+
+            <div class="form-group">
+                <label for="eventDate">Event Date <span class="required">*</span></label>
+                <input type="date" id="eventDate" name="eventDate" required>
+            </div>
+
+            <div class="form-group">
+                <label for="guestCount">Guest Count <span class="required">*</span></label>
+                <select id="guestCount" name="guestCount" required>
+                    <option value="">Select guest count</option>
+                    <option value="10-20">10-20 guests</option>
+                    <option value="21-35">21-35 guests</option>
+                    <option value="36-50">36-50 guests</option>
+                    <option value="51+">51+ guests</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="specialRequests">Special Requests</label>
+                <textarea id="specialRequests" name="specialRequests" 
+                          placeholder="Any special requests or requirements..."></textarea>
+            </div>
+
+            <button type="submit" id="submitBtn">Create Booking</button>
+        </form>
+    </div>
+
+    <script>
+        // Package data with pricing
+        const packages = {
+            'birthday-classic': { name: 'Classic Birthday Bash', price: 299.99 },
+            'birthday-premium': { name: 'Premium Birthday Experience', price: 499.99 },
+            'pool-luxury': { name: 'Luxury Pool Party', price: 799.99 },
+            'wedding-basic': { name: 'Basic Wedding Package', price: 1299.99 },
+            'wedding-premium': { name: 'Premium Wedding Package', price: 2499.99 },
+            'corporate-meeting': { name: 'Corporate Meeting Package', price: 399.99 },
+            'anniversary-special': { name: 'Anniversary Special Package', price: 599.99 }
+        };
+
+        // Price multipliers based on guest count
+        const guestMultipliers = {
+            '10-20': 1.0,
+            '21-35': 1.3,
+            '36-50': 1.6,
+            '51+': 2.0
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthentication();
+            setupEventListeners();
+            setMinDate();
+        });
+
+        // JWT Token management
+        function getAuthToken() {
+            return localStorage.getItem('authToken');
+        }
+
+        function setAuthToken(token) {
+            localStorage.setItem('authToken', token);
+        }
+
+        function removeAuthToken() {
+            localStorage.removeItem('authToken');
+        }
+
+        function handleLogin() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            if (!email || !password) {
+                showMessage('Please enter both email and password', 'error');
+                return;
+            }
+
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.token) {
+                    setAuthToken(data.token);
+                    showMessage('Login successful!', 'success');
+                    checkAuthentication(); // Refresh the auth status
+                } else {
+                    showMessage(data.error || 'Login failed', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Login error:', error);
+                showMessage('Login failed. Please try again.', 'error');
+            });
+        }
+
+        function handleLogout() {
+            removeAuthToken();
+            checkAuthentication();
+            showMessage('Logged out successfully', 'success');
+        }
+
+        function checkAuthentication() {
+            const token = getAuthToken();
+            
+            if (!token) {
+                showNotAuthenticated();
+                return;
+            }
+
+            // Check if token is valid by making a request to the backend
+            fetch('/api/bookings/auth-check', {
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const authStatus = document.getElementById('authStatus');
+                    const userInfo = document.getElementById('userInfo');
+                    const loginSection = document.getElementById('loginSection');
+                    const bookingForm = document.getElementById('bookingForm');
+
+                    if (data.authenticated) {
+                        authStatus.innerHTML = '✅ Authenticated';
+                        authStatus.className = 'auth-status auth-success';
+                        
+                        document.getElementById('userName').textContent = data.userName;
+                        document.getElementById('userEmail').textContent = data.userEmail;
+                        userInfo.style.display = 'block';
+                        loginSection.style.display = 'none';
+                        bookingForm.style.display = 'block';
+                    } else {
+                        showNotAuthenticated();
+                    }
+                })
+                .catch(error => {
+                    console.error('Auth check error:', error);
+                    showNotAuthenticated();
+                });
+        }
+
+        function showNotAuthenticated() {
+            const authStatus = document.getElementById('authStatus');
+            const userInfo = document.getElementById('userInfo');
+            const loginSection = document.getElementById('loginSection');
+            const bookingForm = document.getElementById('bookingForm');
+
+            authStatus.innerHTML = ' Not Authenticated';
+            authStatus.className = 'auth-status auth-error';
+            userInfo.style.display = 'none';
+            loginSection.style.display = 'block';
+            bookingForm.style.display = 'none';
+        }
+
+        function setupEventListeners() {
+            // Package selection
+            document.getElementById('packageId').addEventListener('change', function() {
+                const packageId = this.value;
+                const packageNameInput = document.getElementById('packageName');
+                
+                if (packageId && packages[packageId]) {
+                    packageNameInput.value = packages[packageId].name;
+                } else {
+                    packageNameInput.value = '';
+                }
+            });
+
+            // Guest count selection
+            document.getElementById('guestCount').addEventListener('change', function() {
+                // You can add any guest count related logic here if needed
+            });
+
+            // Form submission
+            document.getElementById('bookingForm').addEventListener('submit', handleSubmit);
+        }
+
+        function setMinDate() {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const minDate = tomorrow.toISOString().split('T')[0];
+            document.getElementById('eventDate').setAttribute('min', minDate);
+        }
+
+        function handleSubmit(event) {
+            event.preventDefault();
+            
+            const token = getAuthToken();
+            if (!token) {
+                showMessage('Please log in to create a booking.', 'error');
+                return;
+            }
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creating Booking...';
+
+            const formData = new FormData(event.target);
+            const bookingData = {
+                packageId: formData.get('packageId'),
+                packageName: formData.get('packageName'),
+                customerPhone: formData.get('customerPhone'),
+                eventDate: formData.get('eventDate'),
+                guestCount: formData.get('guestCount'),
+                specialRequests: formData.get('specialRequests') || null
+            };
+
+            console.log('Submitting booking:', bookingData);
+            console.log('Using token:', token ? 'Token present' : 'No token');
+
+            fetch('/api/bookings/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify(bookingData)
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                if (data.status === 'success') {
+                    showMessage(`Booking created successfully! Booking ID: ${data.id}`, 'success');
+                    event.target.reset();
+                    document.getElementById('packageName').value = '';
+                } else {
+                    showMessage(`Error: ${data.error || 'Unknown error occurred'}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Booking error:', error);
+                showMessage('Network error occurred. Please try again.', 'error');
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Create Booking';
+            });
+        }
+
+        function showMessage(message, type) {
+            const messageArea = document.getElementById('messageArea');
+            messageArea.innerHTML = `<div class="message ${type}">${message}</div>`;
+            setTimeout(() => {
+                messageArea.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
