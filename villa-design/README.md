@@ -1,75 +1,192 @@
-<<<<<<< HEAD
-# Getting Started with Create React App
+# 🏨 Wega Villa 98 - Premium Villa Management System
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A comprehensive villa management and booking platform built with React.js, featuring modern UI/UX design and robust administrative capabilities.
 
-## Available Scripts
+## 🌟 Features
 
-In the project directory, you can run:
+### 🏠 Guest Experience
+- **Interactive Homepage**: Stunning hero sections showcasing villa amenities and location
+- **Room Booking System**: Easy-to-use room reservation with real-time availability
+- **Event Booking**: Special event and occasion booking capabilities
+- **Tour Guide Services**: Browse and book professional tour guides
+- **Gallery**: Beautiful image galleries showcasing villa facilities and surroundings
+- **Client Reviews**: Authentic guest testimonials and rating system
+- **Contact Information**: Multiple ways to reach the villa management
 
-### `npm start`
+### 👥 Administrative Dashboard
+- **Role-Based Access Control**: Separate access levels for Admins and Managers
+- **Session Management**: Secure 30-minute sessions with automatic timeout and heartbeat monitoring
+- **User Management**: Comprehensive user administration and role assignment
+- **Booking Management**: View, manage, and track all reservations
+- **Room Management**: Add, edit, and manage room inventory and availability
+- **Tour Guide Management**: Manage tour guide profiles and availability
+- **Analytics Dashboard**: Visual charts and statistics for business insights
+- **Settings Panel**: Customizable preferences and account management
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 🔐 Authentication & Security
+- **Secure Login System**: JWT-based authentication with role verification
+- **Session Management**: Advanced session handling with multi-tab coordination
+- **Browser Close Detection**: Automatic logout on browser/tab closure
+- **Session Heartbeat**: Keep-alive mechanism for active users
+- **Cross-Tab Synchronization**: Synchronized logout across multiple tabs
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🛠️ Technology Stack
 
-### `npm test`
+- **Frontend Framework**: React.js 18+
+- **Styling**: Tailwind CSS, Custom CSS
+- **UI Components**: Lucide React Icons, Custom Components
+- **Charts**: Chart.js with React Chart.js 2
+- **HTTP Client**: Axios for API communication
+- **Build Tool**: Create React App
+- **State Management**: React Hooks (useState, useEffect)
+- **Routing**: React Router DOM
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## 📁 Project Structure
 
-### `npm run build`
+```
+villa-design/
+├── public/
+│   ├── assets/           # Static images and media files
+│   └── index.html        # HTML template
+├── src/
+│   ├── components/       # Reusable React components
+│   │   ├── Navbar.jsx    # Navigation component
+│   │   ├── Footer.jsx    # Footer component
+│   │   └── ClientReview.jsx # Review component
+│   ├── pages/            # Main application pages
+│   │   ├── Home.jsx      # Landing page
+│   │   ├── About.jsx     # About us page
+│   │   ├── Contact.jsx   # Contact page
+│   │   ├── Auth.jsx      # Login/Authentication
+│   │   ├── AdminDashboard.jsx # Admin panel
+│   │   ├── GuideDashboard.jsx # Tour guide dashboard
+│   │   ├── RoomBooking.jsx    # Room booking interface
+│   │   ├── EventBooking.jsx   # Event booking interface
+│   │   ├── TourGuidBook.jsx   # Tour guide booking
+│   │   ├── gallery.jsx        # Image gallery
+│   │   └── travel.jsx         # Travel information
+│   ├── utils/            # Utility functions
+│   │   ├── api.js        # API communication layer
+│   │   └── sessionManager.js # Session management utilities
+│   ├── App.js            # Main application component
+│   └── index.js          # Application entry point
+├── build/                # Production build files
+├── package.json          # Dependencies and scripts
+├── tailwind.config.js    # Tailwind CSS configuration
+└── README.md             # Project documentation
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 🚀 Getting Started
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Prerequisites
+- Node.js (v14 or higher)
+- npm or yarn package manager
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Installation
 
-### `npm run eject`
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/SE01-Industry-Based-Group-Project2025/Wega_villa98.git
+   cd Wega_villa98/villa-design
+   ```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+3. **Start the development server**
+   ```bash
+   npm start
+   ```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+4. **Open in browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Available Scripts
 
-## Learn More
+- **`npm start`** - Runs the app in development mode
+- **`npm test`** - Launches the test runner
+- **`npm run build`** - Builds the app for production
+- **`npm run eject`** - Ejects from Create React App (one-way operation)
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## 🔧 Configuration
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Environment Setup
+Configure your environment variables for API endpoints and other settings:
 
-### Code Splitting
+```javascript
+// src/utils/api.js
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### Tailwind CSS
+The project uses Tailwind CSS for styling. Configuration is available in `tailwind.config.js`.
 
-### Analyzing the Bundle Size
+## 👤 User Roles & Permissions
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### Admin Users
+- Full system access
+- User management
+- Room and booking management
+- Tour guide administration
+- System settings and analytics
 
-### Making a Progressive Web App
+### Manager Users
+- Dashboard access
+- Booking management
+- Room management
+- Tour guide management
+- Limited administrative functions
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+### Tour Guides
+- Personal dashboard
+- Booking management
+- Profile updates
+- Schedule management
 
-### Advanced Configuration
+### Guests
+- Room booking
+- Event booking
+- Tour guide booking
+- Gallery viewing
+- Contact and reviews
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## 📊 Session Management
 
-### Deployment
+The application features a comprehensive session management system:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+- **Session Duration**: 30 minutes with automatic renewal
+- **Heartbeat Interval**: 5-minute keep-alive requests
+- **Multi-tab Support**: Synchronized logout across browser tabs
+- **Browser Close Detection**: Automatic cleanup on window/tab closure
+- **Session Events**: Real-time session state management
 
-### `npm run build` fails to minify
+## 🎨 UI/UX Features
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-=======
-# WegaVilla-98
-This is a villa website create with react, bootstrap and json
->>>>>>> 48ec5102045d3069f154f258c4c14024bc5d7ecd
+- **Responsive Design**: Mobile-first approach with Tailwind CSS
+- **Interactive Charts**: Real-time data visualization with Chart.js
+- **Modern Icons**: Lucide React icons throughout the interface
+- **Loading States**: Smooth loading indicators and feedback
+- **Form Validation**: Comprehensive client-side validation
+- **Error Handling**: User-friendly error messages and recovery
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is part of an industry-based group project for educational purposes.
+
+## 📞 Support
+
+For support and inquiries, please contact the development team through the project repository or use the contact information provided in the application.
+
+---
+
+**Built with ❤️ by the Wega Villa 98 Development Team**
