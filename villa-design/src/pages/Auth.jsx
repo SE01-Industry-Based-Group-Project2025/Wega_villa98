@@ -21,6 +21,7 @@ const Auth = () => {
   const [agree, setAgree] = useState(false);
 
   // Password visibility states
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -207,6 +208,23 @@ const Auth = () => {
       // Store token
       localStorage.setItem("token", data.token);
       
+      // Store user ID if available
+      if (data.userId || data.id) {
+        localStorage.setItem("userId", data.userId || data.id);
+        console.log("Stored user ID:", data.userId || data.id);
+      }
+
+      // ===== NEW: SESSION MANAGEMENT =====
+      // Handle session management for ADMIN/MANAGER users
+      if (data.sessionId && data.sessionManaged) {
+        console.log("🔐 Session management enabled for user");
+        localStorage.setItem('sessionId', data.sessionId);
+        localStorage.setItem('sessionManaged', data.sessionManaged);
+        console.log("Stored session ID:", data.sessionId);
+      } else {
+        console.log("ℹ️ No session management for this user");
+      }
+      
       // Extract and store user role
       let userRole = null;
       
@@ -251,14 +269,25 @@ const Auth = () => {
       localStorage.setItem("userFullName", displayName);
       localStorage.setItem("username", loginEmail); // Store email as username
       
+      // Set flag to indicate successful login (for pending booking restoration)
+      localStorage.setItem("justLoggedIn", "true");
+      
       // Show success notification
       showCustomNotification(`Welcome back, ${displayName}!`, 'success');
       
       // Trigger custom event to update navbar
       window.dispatchEvent(new CustomEvent('userLogin'));
-        // Role-based navigation
+      // Role-based navigation
       const roleUpper = (userRole || "").toString().toUpperCase();
       console.log("Navigating based on role:", roleUpper);
+      
+      // ===== NEW: START SESSION MANAGEMENT =====
+      // Start session management for ADMIN/MANAGER users
+      if (data.sessionId && (roleUpper.includes('ADMIN') || roleUpper.includes('MANAGER'))) {
+        console.log("🚀 Starting session management for admin/manager user");
+        // Note: The actual session management will be started in the target component (AdminDashboard)
+        // This is because we need access to the component's functions and state
+      }
       
       if (roleUpper.includes('ADMIN') || roleUpper.includes('MANAGER')) {
         navigate('/admin-dashboard');
@@ -328,15 +357,22 @@ const Auth = () => {
                     onChange={(e) => setLoginEmail(e.target.value)}
                   />
                 </div>
-                <div className="flex items-center border px-4 py-3 rounded-md">
+                <div className="flex items-center border px-4 py-3 rounded-md relative">
                   <Lock className="w-5 h-5 mr-3 text-amber-900" />
                   <input
-                    type="password"
+                    type={showLoginPassword ? "text" : "password"}
                     placeholder="Password"
-                    className="w-full outline-none"
+                    className="w-full outline-none pr-10"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                   />
+                  <button
+                    type="button"
+                    className="absolute right-3 text-amber-900 hover:text-amber-700 focus:outline-none"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                  >
+                    {showLoginPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
                 {loginError && <p className="text-red-500 text-sm">{loginError}</p>}
                 <button type="submit" className="w-full bg-[#BF9264] text-white py-3 rounded-md hover:bg-amber-800 transition">

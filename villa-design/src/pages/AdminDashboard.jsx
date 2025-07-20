@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, showApiError, showCustomNotification, debugId } from '../utils/api';
+import { api, showApiError, showCustomNotification, debugId, roomAPI } from '../utils/api';
+import { 
+  startSessionManagement, 
+  logoutWithSession, 
+  getCurrentSessionId, 
+  handleSessionExpiration,
+  setupSessionEventListeners,
+  stopSessionManagement
+} from '../utils/sessionManager';
 import {
   LayoutDashboard,
   Users,
@@ -9,7 +17,6 @@ import {
   LogOut,
   User,
   Bell,
-  Search,
   Hotel,
   DollarSign,
   Plus,
@@ -56,8 +63,8 @@ ChartJS.register(
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [showProfile, setShowProfile] = useState(false);
-    // Manager management states
+  
+  // Manager management states
   const [managers, setManagers] = useState([]);
   const [showManagerForm, setShowManagerForm] = useState(false);
   const [editingManager, setEditingManager] = useState(null);
@@ -70,7 +77,8 @@ const AdminDashboard = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');  // Tour Guide management states
+  const [success, setSuccess] = useState('');
+  // Tour Guide management states
   const [tourGuides, setTourGuides] = useState([]);
   const [showTourGuideForm, setShowTourGuideForm] = useState(false);
   const [editingTourGuide, setEditingTourGuide] = useState(null);
@@ -81,34 +89,17 @@ const AdminDashboard = () => {
   });
   const [tourGuideFormErrors, setTourGuideFormErrors] = useState({});
   const [showTourGuidePassword, setShowTourGuidePassword] = useState(false);
-  // User counts state
-  const [totalUsers, setTotalUsers] = useState(0); // Only users with USER role
-
-  // Room management states
-  const [rooms, setRooms] = useState([]);
-  const [showRoomForm, setShowRoomForm] = useState(false);
-  const [editingRoom, setEditingRoom] = useState(null);
-  const [roomForm, setRoomForm] = useState({
-    name: '',
-    type: '',
-    cost: '',
-    description: '',
-    image: '',
-    status: 'Available',
-    features: []
-  });
-  const [roomFormErrors, setRoomFormErrors] = useState({});
-  const [roomFilter, setRoomFilter] = useState('all');
-  const [roomStatusFilter, setRoomStatusFilter] = useState('all');
 
   // Confirmation modal states
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmTitle, setConfirmTitle] = useState('');
+
   // Settings states
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -124,6 +115,64 @@ const AdminDashboard = () => {
     email: 'admin@wegavilla.com',
     role: 'Administrator'
   });
+
+  // Room Management States
+  const [rooms, setRooms] = useState([]);
+  const [roomTypes, setRoomTypes] = useState([
+    { id: 1, name: 'Standard' },
+    { id: 2, name: 'Deluxe' },
+    { id: 3, name: 'Suite' }
+  ]); // Initialize with default types as fallback
+  const [showRoomForm, setShowRoomForm] = useState(false);
+  const [editingRoom, setEditingRoom] = useState(null);
+  const [roomForm, setRoomForm] = useState({
+    type: '',
+    room_no: '',
+    available: true
+  });
+  const [showNewTypeModal, setShowNewTypeModal] = useState(false);
+  const [newTypeForm, setNewTypeForm] = useState({
+    name: '',
+    description: ''
+  });
+  
+  // Room type management states
+  const [showRoomTypeForm, setShowRoomTypeForm] = useState(false);
+  const [editingRoomType, setEditingRoomType] = useState(null);
+  const [roomTypeForm, setRoomTypeForm] = useState({
+    name: '',
+    description: ''
+  });
+  const [roomTypeFormErrors, setRoomTypeFormErrors] = useState({});
+  
+  const [roomFormErrors, setRoomFormErrors] = useState({});
+  
+  // ===== SESSION MANAGEMENT VARIABLES =====
+  let sessionEventCleanup = null;
+
+  // ===== SESSION MANAGEMENT FUNCTIONS =====
+  
+  // Handle session expiration specific to AdminDashboard
+  const handleAdminSessionExpired = () => {
+    console.log('⏰ Admin session expired, redirecting to login...');
+    
+    // Show notification specific to admin
+    alert('Your admin session has expired for security. Please log in again.');
+    
+    // Navigate to auth page
+    navigate('/auth');
+  };
+
+  // Enhanced logout with session management for AdminDashboard
+  const handleLogoutWithAdminSession = async () => {
+    const sessionId = getCurrentSessionId();
+    
+    await logoutWithSession(sessionId, () => {
+      // Navigate to auth page after logout
+      navigate('/auth');
+    });
+  };
+
   useEffect(() => {
     // Get admin info from localStorage
     const userFullName = localStorage.getItem("userFullName");
@@ -134,316 +183,58 @@ const AdminDashboard = () => {
         name: userFullName,
         email: localStorage.getItem("username") || "user@wegavilla.com",
         role: userRole === 'ADMIN' ? 'Administrator' : userRole === 'MANAGER' ? 'Manager' : userRole
-      });    }    // Load managers when component mounts
-    if (canViewManagers()) {
+      });    }
+
+    // ===== SESSION MANAGEMENT INITIALIZATION =====
+    const sessionId = getCurrentSessionId();
+    const sessionManaged = localStorage.getItem('sessionManaged');
+    
+    // Start session management for ADMIN/MANAGER users if session exists
+    if (sessionId && sessionManaged === 'true') {
+      startSessionManagement(sessionId, handleAdminSessionExpired);
+      console.log('🔄 Session management started for admin dashboard');
+    }
+
+    // Setup event listeners for session management
+    sessionEventCleanup = setupSessionEventListeners(handleAdminSessionExpired);
+
+    // Load managers when component mounts
+    if (hasAdminPrivileges()) {
       loadManagers();
     }
 
     // Load tour guides when component mounts
     loadTourGuides();
-    
-    // Load rooms when component mounts
-    loadRooms();
-  }, []);// Check admin privileges
+
+    // Load rooms and room types when component mounts (for managers and admins)
+    if (hasManagerOrAdminPrivileges()) {
+      console.log('👤 User has manager/admin privileges, loading rooms...');
+      loadRooms();
+      loadRoomTypes();
+    }
+
+    // Cleanup function
+    return () => {
+      // Clean up session event listeners
+      if (sessionEventCleanup) {
+        sessionEventCleanup();
+      }
+      
+      // Stop session management
+      stopSessionManagement();
+    };
+  }, []);
+  // Check admin privileges (only for admin-specific features)
   const hasAdminPrivileges = () => {
     const userRole = localStorage.getItem("userRole");
-    return userRole && userRole.toUpperCase().includes('ADMIN');
+    return userRole && userRole.toUpperCase() === 'ADMIN';
   };
 
-  // Check if user can view manager data (both admin and manager can view)
-  const canViewManagers = () => {
+  // Check if user has manager or admin privileges (for features accessible to both)
+  const hasManagerOrAdminPrivileges = () => {
     const userRole = localStorage.getItem("userRole");
-    return userRole && (userRole.toUpperCase().includes('ADMIN') || userRole.toUpperCase().includes('MANAGER'));
+    return userRole && (userRole.toUpperCase() === 'ADMIN' || userRole.toUpperCase() === 'MANAGER');
   };
-  // Available room features
-  const availableFeatures = [
-    'WiFi', 'Air Conditioning', 'TV', 'Mini Bar', 'Balcony', 'Ocean View',
-    'Room Service', 'Safe', 'Bathtub', 'Shower', 'Hair Dryer', 'Coffee Maker'
-  ];
-
-  // Filtered rooms based on type and status
-  const filteredRooms = rooms.filter(room => {
-    const typeMatch = roomFilter === 'all' || room.type === roomFilter;
-    const statusMatch = roomStatusFilter === 'all' || room.status === roomStatusFilter;
-    return typeMatch && statusMatch;
-  });
-
-  // Load rooms from backend
-  const loadRooms = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const response = await fetch('http://localhost:8080/api/rooms', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setRooms(data);
-      } else {
-        // For demo purposes, use sample data if API fails
-        const sampleRooms = [
-          {
-            id: 1,
-            name: "Deluxe Ocean View",
-            type: "Deluxe",
-            cost: 250,
-            description: "Spacious deluxe room with stunning ocean views, private balcony, and premium amenities.",
-            image: "/assets/hotel1.jpg",
-            status: "Available",
-            features: ["WiFi", "Air Conditioning", "Ocean View", "Balcony", "Mini Bar", "Room Service"]
-          },
-          {
-            id: 2,
-            name: "Standard Garden Room",
-            type: "Standard",
-            cost: 150,
-            description: "Comfortable standard room with garden views and essential amenities for a pleasant stay.",
-            image: "/assets/hotel2.jpg",
-            status: "Available",
-            features: ["WiFi", "Air Conditioning", "TV", "Coffee Maker"]
-          },
-          {
-            id: 3,
-            name: "Presidential Suite",
-            type: "Presidential",
-            cost: 500,
-            description: "Luxurious presidential suite with separate living area, premium furnishings, and exclusive services.",
-            image: "/assets/hotel1.jpg",
-            status: "Occupied",
-            features: ["WiFi", "Air Conditioning", "Ocean View", "Balcony", "Mini Bar", "Room Service", "Safe", "Bathtub"]
-          }
-        ];
-        setRooms(sampleRooms);
-      }
-    } catch (error) {
-      console.error('Error loading rooms:', error);
-      setError('Failed to load rooms. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Room form validation
-  const validateRoomField = (field, value) => {
-    let error = '';
-    
-    switch (field) {
-      case 'name':
-        if (!value.trim()) {
-          error = 'Room name is required';
-        } else if (value.trim().length < 3) {
-          error = 'Room name must be at least 3 characters';
-        }
-        break;
-      
-      case 'type':
-        if (!value) {
-          error = 'Room type is required';
-        }
-        break;
-      
-      case 'cost':
-        if (!value) {
-          error = 'Cost per night is required';
-        } else if (isNaN(value) || parseFloat(value) <= 0) {
-          error = 'Cost must be a positive number';
-        }
-        break;
-      
-      case 'description':
-        if (!value.trim()) {
-          error = 'Room description is required';
-        } else if (value.trim().length < 10) {
-          error = 'Description must be at least 10 characters';
-        }
-        break;
-      
-      default:
-        break;
-    }
-    
-    setRoomFormErrors(prev => ({
-      ...prev,
-      [field]: error
-    }));
-    
-    return error === '';
-  };
-
-  // Handle room form input changes
-  const handleRoomInputChange = (field, value) => {
-    setRoomForm(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    
-    // Clear previous error when user starts typing
-    if (roomFormErrors[field]) {
-      setRoomFormErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
-    }
-    
-    // Validate on blur for better UX
-    if (field !== 'image') {
-      setTimeout(() => validateRoomField(field, value), 500);
-    }
-  };
-
-  // Reset room form
-  const resetRoomForm = () => {
-    setRoomForm({
-      name: '',
-      type: '',
-      cost: '',
-      description: '',
-      image: '',
-      status: 'Available',
-      features: []
-    });
-    setRoomFormErrors({});
-    setEditingRoom(null);
-    setShowRoomForm(false);
-  };
-
-  // Handle room form submission
-  const handleRoomSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    // Validate all fields
-    const isNameValid = validateRoomField('name', roomForm.name);
-    const isTypeValid = validateRoomField('type', roomForm.type);
-    const isCostValid = validateRoomField('cost', roomForm.cost);
-    const isDescriptionValid = validateRoomField('description', roomForm.description);
-
-    if (!isNameValid || !isTypeValid || !isCostValid || !isDescriptionValid) {
-      setError('Please fix all validation errors before submitting.');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const roomData = {
-        ...roomForm,
-        cost: parseFloat(roomForm.cost)
-      };
-
-      const url = editingRoom 
-        ? `http://localhost:8080/api/rooms/${editingRoom.id}`
-        : 'http://localhost:8080/api/rooms';
-      
-      const method = editingRoom ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(roomData)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setSuccess(editingRoom ? 'Room updated successfully!' : 'Room added successfully!');
-        
-        if (editingRoom) {
-          setRooms(prev => prev.map(room => 
-            room.id === editingRoom.id ? { ...result, id: editingRoom.id } : room
-          ));
-        } else {
-          setRooms(prev => [...prev, { ...result, id: Date.now() }]);
-        }
-        
-        resetRoomForm();
-      } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Failed to save room. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error saving room:', error);
-      
-      // For demo purposes, simulate successful operation
-      const newRoom = {
-        ...roomForm,
-        id: editingRoom ? editingRoom.id : Date.now(),
-        cost: parseFloat(roomForm.cost)
-      };
-
-      if (editingRoom) {
-        setRooms(prev => prev.map(room => 
-          room.id === editingRoom.id ? newRoom : room
-        ));
-        setSuccess('Room updated successfully!');
-      } else {
-        setRooms(prev => [...prev, newRoom]);
-        setSuccess('Room added successfully!');
-      }
-      
-      resetRoomForm();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle edit room
-  const handleEditRoom = (room) => {
-    setEditingRoom(room);
-    setRoomForm({
-      name: room.name,
-      type: room.type,
-      cost: room.cost.toString(),
-      description: room.description,
-      image: room.image || '',
-      status: room.status,
-      features: room.features || []
-    });
-    setShowRoomForm(true);
-  };
-
-  // Handle delete room
-  const handleDeleteRoom = async (roomId) => {
-    showConfirmation(
-      'Delete Room',
-      'Are you sure you want to delete this room? This action cannot be undone.',
-      async () => {
-        setLoading(true);
-        try {
-          const response = await fetch(`http://localhost:8080/api/rooms/${roomId}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            }
-          });
-
-          if (response.ok) {
-            setRooms(prev => prev.filter(room => room.id !== roomId));
-            setSuccess('Room deleted successfully!');
-          } else {
-            setError('Failed to delete room. Please try again.');
-          }
-        } catch (error) {
-          console.error('Error deleting room:', error);
-          // For demo purposes, simulate successful deletion
-          setRooms(prev => prev.filter(room => room.id !== roomId));
-          setSuccess('Room deleted successfully!');
-        } finally {
-          setLoading(false);
-        }
-      }
-    );
-  };
-
-  // ===== MANAGER MANAGEMENT FUNCTIONS =====
-
   // Load managers from backend with improved error handling
   const loadManagers = async () => {
     try {
@@ -917,20 +708,10 @@ const AdminDashboard = () => {
             role: guide.role === 5 || guide.role === '5' ? 'TOUR_GUIDE' : (guide.role || 'TOUR_GUIDE'),
             status: guide.status || (guide.active !== false ? 'Active' : 'Inactive')
           };
-        });        console.log('Normalized tour guides:', normalizedTourGuides);
-        setTourGuides(normalizedTourGuides);
-        
-        // Count only users with USER role (not managers or tour guides)
-        const regularUsers = usersData.filter(user => {
-          const userRole = user.role;
-          // Check for role ID 3 (user) or role string 'USER'
-          const isRoleId3 = userRole === 3 || userRole === '3';
-          const isRoleString = (userRole || '').toString().trim().toUpperCase() === 'USER';
-          return isRoleId3 || isRoleString;
         });
         
-        console.log('Regular users (USER role only):', regularUsers);
-        setTotalUsers(regularUsers.length);
+        console.log('Normalized tour guides:', normalizedTourGuides);
+        setTourGuides(normalizedTourGuides);
       } else {
         console.error('Failed to load tour guides:', result.error);
         setError(result.error);
@@ -1105,12 +886,382 @@ const AdminDashboard = () => {
 
   // ===== END TOUR GUIDE MANAGEMENT FUNCTIONS =====
 
-  // Logout handler
+  // ===== ROOM MANAGEMENT FUNCTIONS =====
+  
+  // Load rooms from backend
+  const loadRooms = async () => {
+    try {
+      console.log('🔍 Loading rooms...');
+      setLoading(true);
+      const result = await roomAPI.getAllRooms();
+      
+      console.log('📦 Raw API result:', result);
+      
+      if (result.ok && result.json) {
+        // Handle the backend response structure: { rooms: [...], total: number }
+        const responseData = result.json;
+        console.log('📋 Response data:', responseData);
+        
+        let roomsData = [];
+        if (responseData.rooms && Array.isArray(responseData.rooms)) {
+          roomsData = responseData.rooms;
+        } else if (Array.isArray(responseData)) {
+          roomsData = responseData;
+        }
+        
+        setRooms(roomsData);
+        console.log('✅ Rooms loaded successfully:', roomsData);
+        console.log('📊 Total rooms:', roomsData.length);
+      } else {
+        console.error('❌ Failed to load rooms:', result.error);
+        setRooms([]); // Ensure rooms is always an array
+        showApiError(result.error, 'load rooms');
+      }
+    } catch (error) {
+      console.error('Load rooms error:', error);
+      setRooms([]); // Ensure rooms is always an array
+      showApiError('Failed to load rooms', 'load rooms');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load room types from backend
+  const loadRoomTypes = async () => {
+    try {
+      const result = await roomAPI.getRoomTypes();
+      
+      if (result.ok && result.json) {
+        // Handle the backend response structure: { roomTypes: [...], total: number }
+        const responseData = result.json;
+        const backendTypes = Array.isArray(responseData.roomTypes) ? responseData.roomTypes : 
+                           Array.isArray(responseData) ? responseData : [];
+        
+        setRoomTypes(backendTypes);
+        console.log('Room types loaded from database:', backendTypes);
+      } else {
+        console.error('Failed to load room types:', result.error);
+        setRoomTypes([]); // Empty array if no room types in database
+        showApiError(result.error, 'load room types');
+      }
+    } catch (error) {
+      console.error('Load room types error:', error);
+      setRoomTypes([]); // Empty array on error
+      showApiError('Failed to load room types from database', 'load room types');
+    }
+  };
+
+  // Handle room form submission
+  const handleRoomSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validate form
+    const errors = {};
+    if (!roomForm.type.trim()) errors.type = 'Room type is required';
+    if (!roomForm.room_no.trim()) errors.room_no = 'Room number is required';
+    
+    if (Object.keys(errors).length > 0) {
+      setRoomFormErrors(errors);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('📝 Room form data:', roomForm);
+      console.log('📋 Available room types:', roomTypes);
+      
+      // Find the room type ID from the selected type name
+      const selectedRoomType = Array.isArray(roomTypes) 
+        ? roomTypes.find(rt => rt.name === roomForm.type)
+        : null;
+      
+      console.log('🔍 Selected room type:', selectedRoomType);
+      
+      if (!selectedRoomType) {
+        throw new Error(`Room type "${roomForm.type}" not found in available types`);
+      }
+      
+      const roomData = {
+        type: roomForm.type,              // Keep the type name for backend processing
+        roomTypeId: selectedRoomType.id,  // Also send the ID
+        room_no: roomForm.room_no,
+        available: roomForm.available
+      };
+
+      console.log('🏠 Room data to be sent:', roomData);
+
+      let result;
+      if (editingRoom) {
+        console.log('📝 Updating room:', editingRoom.id);
+        result = await roomAPI.updateRoom(editingRoom.id, roomData);
+      } else {
+        console.log('➕ Creating new room');
+        result = await roomAPI.createRoom(roomData);
+      }
+
+      console.log('🔄 API Result:', result);
+
+      if (result.ok) {
+        const successMessage = editingRoom ? 'Room updated successfully!' : 'Room created successfully!';
+        showCustomNotification(successMessage, 'success');
+        resetRoomForm();
+        await loadRooms();
+      } else {
+        console.error('❌ Room operation failed:', result.error);
+        showApiError(result.error, editingRoom ? 'update room' : 'create room');
+      }
+    } catch (error) {
+      console.error('Room submit error:', error);
+      showApiError('An unexpected error occurred', 'submit room');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset room form
+  const resetRoomForm = () => {
+    setRoomForm({
+      type: '',
+      room_no: '',
+      available: true
+    });
+    setRoomFormErrors({});
+    setEditingRoom(null);
+    setShowRoomForm(false);
+  };
+
+  // Handle edit room
+  const handleEditRoom = (room) => {
+    setEditingRoom(room);
+    setRoomForm({
+      type: room.type || '',
+      room_no: room.room_no || '',
+      available: room.available !== false
+    });
+    setRoomFormErrors({});
+    setShowRoomForm(true);
+  };
+
+  // Handle delete room (admin only)
+  const handleDeleteRoom = async (roomId) => {
+    if (!hasAdminPrivileges()) {
+      showApiError("Only administrators can delete rooms.", "delete room");
+      return;
+    }
+
+    showConfirmation(
+      'Delete Room',
+      'Are you sure you want to delete this room? This action cannot be undone.',
+      async () => {
+        setLoading(true);
+        try {
+          const result = await roomAPI.deleteRoom(roomId);
+          
+          if (result.ok) {
+            showCustomNotification('Room deleted successfully!', 'success');
+            await loadRooms();
+          } else {
+            showApiError(result.error, 'delete room');
+          }
+        } catch (error) {
+          console.error('Delete room error:', error);
+          showApiError('Failed to delete room', 'delete room');
+        } finally {
+          setLoading(false);
+        }
+      }
+    );
+  };
+
+  // Handle new room type creation
+  const handleCreateNewType = async () => {
+    if (!newTypeForm.name.trim()) {
+      showCustomNotification('Please enter a type name', 'warning');
+      return;
+    }
+
+    // Check if type already exists
+    const existingType = roomTypes.find(type => 
+      (type.name || type).toLowerCase() === newTypeForm.name.trim().toLowerCase()
+    );
+    
+    if (existingType) {
+      showCustomNotification('This room type already exists', 'warning');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Use the new API endpoint with name and description
+      const roomTypeData = {
+        name: newTypeForm.name.trim(),
+        description: newTypeForm.description.trim()
+      };
+      
+      const result = await roomAPI.createRoomType(roomTypeData);
+      
+      if (result.ok) {
+        showCustomNotification('Room type created successfully!', 'success');
+        setNewTypeForm({ name: '', description: '' });
+        setShowNewTypeModal(false);
+        await loadRoomTypes();
+        // Auto-select the new type in the form
+        setRoomForm(prev => ({ ...prev, type: newTypeForm.name.trim() }));
+      } else {
+        console.error('Create room type error:', result.error);
+        showCustomNotification(result.error || 'Failed to create room type', 'error');
+      }
+    } catch (error) {
+      console.error('Create room type error:', error);
+      showCustomNotification('Failed to create room type. Please try again.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Room Type Management Functions
+  const handleRoomTypeSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validate form
+    const errors = {};
+    if (!roomTypeForm.name.trim()) errors.name = 'Room type name is required';
+    
+    if (Object.keys(errors).length > 0) {
+      setRoomTypeFormErrors(errors);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const roomTypeData = {
+        name: roomTypeForm.name.trim(),
+        description: roomTypeForm.description.trim()
+      };
+
+      let result;
+      if (editingRoomType) {
+        // Update existing room type
+        result = await roomAPI.updateRoomType(editingRoomType.id, roomTypeData);
+      } else {
+        // Create new room type
+        result = await roomAPI.createRoomType(roomTypeData);
+      }
+      
+      if (result.ok) {
+        showCustomNotification(
+          editingRoomType ? 'Room type updated successfully!' : 'Room type created successfully!', 
+          'success'
+        );
+        
+        // Reload room types
+        await loadRoomTypes();
+        resetRoomTypeForm();
+      } else {
+        console.error('Room type operation failed:', result.error);
+        showCustomNotification(result.error || 'Failed to save room type', 'error');
+      }
+    } catch (error) {
+      console.error('Room type operation error:', error);
+      showCustomNotification('Failed to save room type. Please try again.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset room type form
+  const resetRoomTypeForm = () => {
+    setRoomTypeForm({
+      name: '',
+      description: ''
+    });
+    setRoomTypeFormErrors({});
+    setEditingRoomType(null);
+    setShowRoomTypeForm(false);
+  };
+
+  // Handle edit room type
+  const handleEditRoomType = (roomType) => {
+    setEditingRoomType(roomType);
+    setRoomTypeForm({
+      name: roomType.name || '',
+      description: roomType.description || ''
+    });
+    setRoomTypeFormErrors({});
+    setShowRoomTypeForm(true);
+  };
+
+  // Handle delete room type
+  const handleDeleteRoomType = (roomTypeId) => {
+    showConfirmation(
+      'Delete Room Type',
+      'Are you sure you want to delete this room type? This action cannot be undone.',
+      async () => {
+        setLoading(true);
+        try {
+          const result = await roomAPI.deleteRoomType(roomTypeId);
+          
+          if (result.ok) {
+            showCustomNotification('Room type deleted successfully!', 'success');
+            await loadRoomTypes();
+          } else {
+            console.error('Delete room type failed:', result.error);
+            showCustomNotification(result.error || 'Failed to delete room type', 'error');
+          }
+        } catch (error) {
+          console.error('Delete room type error:', error);
+          showCustomNotification('Failed to delete room type. Please try again.', 'error');
+        } finally {
+          setLoading(false);
+        }
+      }
+    );
+  };
+
+  // Toggle room availability
+  const toggleRoomAvailability = async (roomId, currentAvailability) => {
+    setLoading(true);
+    try {
+      const result = await roomAPI.updateRoomAvailability(roomId, !currentAvailability);
+      
+      if (result.ok) {
+        showCustomNotification(`Room marked as ${!currentAvailability ? 'available' : 'unavailable'}`, 'success');
+        await loadRooms();
+      } else {
+        showApiError(result.error, 'update room availability');
+      }
+    } catch (error) {
+      console.error('Toggle room availability error:', error);
+      showApiError('Failed to update room availability', 'update room availability');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load rooms and room types when component mounts or activeTab changes to rooms
+  useEffect(() => {
+    if (activeTab === 'rooms' && hasManagerOrAdminPrivileges()) {
+      loadRooms();
+      loadRoomTypes();
+    }
+  }, [activeTab]);
+
+  // ===== END ROOM MANAGEMENT FUNCTIONS =====
+
+  // Logout handler with session management
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('username');
-    navigate('/auth');
+    const sessionId = getCurrentSessionId();
+    
+    if (sessionId) {
+      // Use enhanced logout with session management
+      handleLogoutWithAdminSession();
+    } else {
+      // Fallback to simple logout for users without session management
+      localStorage.removeItem('token');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('username');
+      navigate('/auth');
+    }
   };
 
   // Sample data for charts
@@ -1173,12 +1324,11 @@ const AdminDashboard = () => {
     return menuItems.filter(item => item.roles.includes(userRole));
   };
 
-  const filteredMenuItems = getFilteredMenuItems();  const stats = [
-    { label: 'Total Room Bookings', value: '94', icon: Calendar, color: 'bg-blue-500' },
-    { label: 'Total Event Bookings', value: '94', icon: Calendar, color: 'bg-blue-500' },
-    { label: 'Total Clients', value: totalUsers.toString(), icon: Users, color: 'bg-green-500' },
-    { label: 'Total Managers', value: managers.length.toString(), icon: Users, color: 'bg-green-500' },
-    { label: 'Total Tour Guides', value: tourGuides.length.toString(), icon: Users, color: 'bg-green-500' },
+  const filteredMenuItems = getFilteredMenuItems();
+
+  const stats = [
+    { label: 'Total Bookings', value: '94', icon: Calendar, color: 'bg-blue-500' },
+    { label: 'Total Users', value: '1,234', icon: Users, color: 'bg-green-500' },
     { label: 'Revenue', value: '$94,000', icon: DollarSign, color: 'bg-yellow-500' },
     { label: 'Available Rooms', value: '25', icon: Hotel, color: 'bg-purple-500' },
   ];
@@ -1368,62 +1518,48 @@ const AdminDashboard = () => {
             </div>
             
             <div className="flex items-center space-x-4">              
-              <div className="relative">
-                <Search className={`w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className={`pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
-                    isDarkMode 
-                      ? 'bg-slate-700 border-slate-600 text-slate-200 placeholder-slate-400' 
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                  }`}
-                />
-              </div>
-                <button className={`p-2 rounded-lg relative ${isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}>
+              <button className={`p-2 rounded-lg relative ${isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}>
                 <Bell className={`w-5 h-5 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
                   3
                 </span>
               </button>
               
-              <div className="relative">                
-                <button
-                  onClick={() => setShowProfile(!showProfile)}
-                  className={`flex items-center space-x-2 p-2 rounded-lg ${isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}>
+              <div className="relative group">                
+                <div className={`flex items-center space-x-2 p-2 rounded-lg cursor-pointer ${isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}>
                   <div className="w-8 h-8 bg-[#BF9264] rounded-full flex items-center justify-center">
                     <User className="w-4 h-4 text-white" />
                   </div>
                   <span className={`${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>{adminInfo.name}</span>
-                </button>
-                  {showProfile && (
-                  <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border z-50 ${
-                    isDarkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'
-                  }`}>
-                    <div className={`p-4 border-b ${isDarkMode ? 'border-slate-600' : 'border-gray-200'}`}>
-                      <p className={`font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>{adminInfo.name}</p>
-                      <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>{adminInfo.email}</p>
-                      <p className="text-xs text-[#BF9264]">{adminInfo.role}</p>
-                    </div>
-                    <div className="p-2">
-                      <button className={`w-full text-left px-3 py-2 rounded flex items-center space-x-2 ${
-                        isDarkMode ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-gray-100 text-gray-700'
-                      }`}>
-                        <Settings className="w-4 h-4" />
-                        <span>Settings</span>
-                      </button>
-                      <button
-                        onClick={handleLogout}
-                        className={`w-full text-left px-3 py-2 rounded flex items-center space-x-2 text-red-500 ${
-                          isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'
-                        }`}
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Logout</span>
-                      </button>
-                    </div>
+                </div>
+                
+                {/* Hover dropdown */}
+                <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ${
+                  isDarkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'
+                }`}>
+                  <div className={`p-4 border-b ${isDarkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                    <p className={`font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>{adminInfo.name}</p>
+                    <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>{adminInfo.email}</p>
+                    <p className="text-xs text-[#BF9264]">{adminInfo.role}</p>
                   </div>
-                )}
+                  <div className="p-2">
+                    <button className={`w-full text-left px-3 py-2 rounded flex items-center space-x-2 ${
+                      isDarkMode ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-gray-100 text-gray-700'
+                    }`}>
+                      <Settings className="w-4 h-4" />
+                      <span>Settings</span>
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className={`w-full text-left px-3 py-2 rounded flex items-center space-x-2 text-red-500 ${
+                        isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'
+                      }`}
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1509,7 +1645,7 @@ const AdminDashboard = () => {
             </div>
           )}          {activeTab === 'managers' && (
             <div className="space-y-6">
-              {!canViewManagers() ? (
+              {!hasAdminPrivileges() ? (
                 <div className={`border rounded-lg p-4 ${
                   isDarkMode ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-200 text-red-700'
                 }`}>                  <div className="flex items-center">
@@ -1695,8 +1831,6 @@ const AdminDashboard = () => {
                                 <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>ID</th>
                                 <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Name</th>
                                 <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Email</th>
-                                <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Role</th>
-                                <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Status</th>
                                 <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Actions</th>
                               </tr>
                             </thead>
@@ -1712,16 +1846,7 @@ const AdminDashboard = () => {
                                     {manager.id || 'NO_ID'} ({typeof manager.id})
                                   </td>
                                   <td className="py-3 px-4">{manager.name}</td>
-                                  <td className="py-3 px-4">{manager.email}</td>                                  <td className="py-3 px-4">
-                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
-                                      {manager.role}
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
-                                      {manager.status}
-                                    </span>
-                                  </td>
+                                  <td className="py-3 px-4">{manager.email}</td>
                                   <td className="py-3 px-4">
                                     <div className="flex space-x-2">
                                       <button
@@ -1754,8 +1879,7 @@ const AdminDashboard = () => {
               )}
             </div>
           )}{activeTab === 'tourguides' && (
-            <div className="space-y-6">              
-            <div className="flex justify-between items-center">
+            <div className="space-y-6">              <div className="flex justify-between items-center">
                 <h3 className={`text-2xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>Tour Guide Management</h3>
                 <div className="flex space-x-2">
                   <button
@@ -1830,8 +1954,6 @@ const AdminDashboard = () => {
                           <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>ID</th>
                           <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Name</th>
                           <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Email</th>
-                          <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Role</th>
-                          <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Status</th>
                           <th className={`text-left py-3 px-4 font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Actions</th>
                         </tr>
                       </thead>
@@ -1847,20 +1969,6 @@ const AdminDashboard = () => {
                               </td>
                               <td className={`py-3 px-4 ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>{guide.name}</td>
                               <td className={`py-3 px-4 ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>{guide.email}</td>
-                              <td className="py-3 px-4">
-                                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-medium">
-                                  {guide.role}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  guide.status === 'Active' 
-                                    ? 'bg-green-100 text-green-800' 
-                                    : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {guide.status || 'Active'}
-                                </span>
-                              </td>
                               <td className="py-3 px-4">
                                 <div className="flex space-x-2">
                                   <button
@@ -2044,423 +2152,513 @@ const AdminDashboard = () => {
               <h3 className="text-lg font-semibold mb-4">Booking Management</h3>
               <p className="text-gray-600">Booking management interface will be implemented here.</p>
             </div>
-          )}          {activeTab === 'rooms' && (
-            <div className="space-y-6">
-              {/* Header */}
-              <div className="flex justify-between items-center">
-                <h3 className={`text-2xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>Room Management</h3>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={loadRooms}
-                    disabled={loading}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
-                    title="Refresh rooms list"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <span>Refresh</span>
-                  </button>
+          )}
+
+          {activeTab === 'rooms' && (
+            <div className={`rounded-lg shadow-sm border p-6 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'}`}>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className={`text-2xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                  Room Management
+                </h3>
+                {hasManagerOrAdminPrivileges() && (
                   <button
                     onClick={() => setShowRoomForm(true)}
-                    className="bg-[#BF9264] hover:bg-amber-800 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+                    disabled={loading}
+                    className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Add Room</span>
                   </button>
-                </div>
+                )}
               </div>
 
-              {/* Error and Success Messages */}
               {error && (
-                <div className={`border rounded-lg p-4 ${
-                  isDarkMode ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-200 text-red-700'
-                }`}>
-                  <div className="flex items-center">
-                    <AlertCircle className="w-5 h-5 mr-2" />
-                    <span className="font-medium">{error}</span>
-                  </div>
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                  {error}
                 </div>
               )}
-              
+
               {success && (
-                <div className={`border rounded-lg p-4 ${
-                  isDarkMode ? 'bg-green-900/20 border-green-800 text-green-400' : 'bg-green-50 border-green-200 text-green-700'
-                }`}>
-                  <div className="flex items-center">
-                    <CheckCircle className="w-5 h-5 mr-2" />
-                    <span className="font-medium">{success}</span>
-                  </div>
+                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4">
+                  {success}
                 </div>
               )}
 
-              {/* Rooms Grid */}
-              <div className={`rounded-lg shadow-sm border p-6 ${
-                isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-              }`}>
-                <div className="flex justify-between items-center mb-6">
-                  <h4 className={`text-lg font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
-                    Available Rooms ({rooms.length})
-                  </h4>
-                  <div className="flex space-x-4">
-                    <select 
-                      value={roomFilter}
-                      onChange={(e) => setRoomFilter(e.target.value)}
-                      className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
-                        isDarkMode 
-                          ? 'bg-slate-700 border-slate-600 text-slate-200' 
-                          : 'bg-white border-gray-300 text-gray-900'
-                      }`}
-                    >
-                      <option value="all">All Rooms</option>
-                      <option value="Standard">Standard</option>
-                      <option value="Deluxe">Deluxe</option>
-                      <option value="Suite">Suite</option>
-                      <option value="Presidential">Presidential</option>
-                    </select>
-                    <select 
-                      value={roomStatusFilter}
-                      onChange={(e) => setRoomStatusFilter(e.target.value)}
-                      className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
-                        isDarkMode 
-                          ? 'bg-slate-700 border-slate-600 text-slate-200' 
-                          : 'bg-white border-gray-300 text-gray-900'
-                      }`}
-                    >
-                      <option value="all">All Status</option>
-                      <option value="Available">Available</option>
-                      <option value="Occupied">Occupied</option>
-                      <option value="Maintenance">Maintenance</option>
-                    </select>
-                  </div>
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                  <p className={`mt-2 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>Loading rooms...</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className={`border-b ${isDarkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                        <th className={`text-left py-3 px-4 font-medium ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Room Number
+                        </th>
+                        <th className={`text-left py-3 px-4 font-medium ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Type
+                        </th>
+                        <th className={`text-left py-3 px-4 font-medium ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Status
+                        </th>
+                        <th className={`text-left py-3 px-4 font-medium ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.isArray(rooms) && rooms.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" className={`text-center py-8 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                            No rooms found. Add your first room to get started.
+                          </td>
+                        </tr>
+                      ) : (
+                        Array.isArray(rooms) && rooms.map((room) => (
+                          <tr key={room.id} className={`border-b ${isDarkMode ? 'border-slate-600' : 'border-gray-100'}`}>
+                            <td className={`py-3 px-4 ${isDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                              {room.room_no}
+                            </td>
+                            <td className={`py-3 px-4 ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+                              {room.type}
+                            </td>
+                            <td className="py-3 px-4">
+                              <button
+                                onClick={() => toggleRoomAvailability(room.id, room.available)}
+                                disabled={loading}
+                                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                                  room.available
+                                    ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                                    : 'bg-red-100 text-red-800 hover:bg-red-200'
+                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                              >
+                                {room.available ? 'Available' : 'Unavailable'}
+                              </button>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleEditRoom(room)}
+                                  disabled={loading}
+                                  className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    isDarkMode 
+                                      ? 'text-blue-400 hover:text-blue-300' 
+                                      : 'text-blue-600 hover:text-blue-800'
+                                  }`}
+                                  title="Edit Room"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                {hasAdminPrivileges() && (
+                                  <button
+                                    onClick={() => handleDeleteRoom(room.id)}
+                                    disabled={loading}
+                                    className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                      isDarkMode 
+                                        ? 'text-red-400 hover:text-red-300' 
+                                        : 'text-red-600 hover:text-red-800'
+                                    }`}
+                                    title="Delete Room (Admin Only)"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )) || (
+                        <tr>
+                          <td colSpan="4" className={`text-center py-8 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                            Loading rooms...
+                          </td>
+                        </tr>
+                      )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Room Types Management Section */}
+              <div className="mt-8">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className={`text-xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                    Room Types Management
+                  </h3>
+                  <button
+                    onClick={() => setShowRoomTypeForm(true)}
+                    className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600 flex items-center space-x-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Room Type</span>
+                  </button>
                 </div>
 
-                {loading ? (
-                  <div className="flex justify-center items-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#BF9264]"></div>
-                    <span className={`ml-2 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>Loading rooms...</span>
-                  </div>
-                ) : filteredRooms.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Hotel className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                    <p className={`text-lg font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                      No rooms found
-                    </p>
-                    <p className={`${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                      {rooms.length === 0 ? 'Add your first room to get started!' : 'Try adjusting your filters.'}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredRooms.map((room) => (
-                      <div key={room.id} className={`rounded-lg border overflow-hidden transition-transform hover:scale-105 ${
-                        isDarkMode ? 'bg-slate-700 border-slate-600' : 'bg-white border-gray-200'
-                      }`}>
-                        {/* Room Image */}
-                        <div className="relative h-48 bg-gray-200">
-                          {room.image ? (
-                            <img
-                              src={room.image}
-                              alt={room.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.src = '/assets/hotel1.jpg'; // Fallback image
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gray-300">
-                              <Hotel className="w-12 h-12 text-gray-500" />
-                            </div>
-                          )}
-                          
-                          {/* Status Badge */}
-                          <div className="absolute top-2 right-2">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              room.status === 'Available' 
-                                ? 'bg-green-100 text-green-800' 
-                                : room.status === 'Occupied'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {room.status}
-                            </span>
-                          </div>
-
-                          {/* Room Type Badge */}
-                          <div className="absolute top-2 left-2">
-                            <span className="bg-[#BF9264] text-white px-2 py-1 rounded-full text-xs font-medium">
-                              {room.type}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Room Details */}
-                        <div className="p-4">
-                          <div className="flex justify-between items-start mb-2">
-                            <h5 className={`text-lg font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
-                              {room.name}
-                            </h5>
-                            <span className={`text-lg font-bold text-[#BF9264]`}>
-                              ${room.cost}/night
-                            </span>
-                          </div>
-                          
-                          <p className={`text-sm mb-3 line-clamp-2 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
-                            {room.description}
-                          </p>
-
-                          {/* Room Features */}
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {room.features && room.features.map((feature, index) => (
-                              <span key={index} className={`px-2 py-1 rounded text-xs ${
-                                isDarkMode ? 'bg-slate-600 text-slate-300' : 'bg-gray-100 text-gray-700'
-                              }`}>
-                                {feature}
-                              </span>
-                            ))}
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleEditRoom(room)}
-                              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center space-x-1"
-                            >
-                              <Edit className="w-4 h-4" />
-                              <span>Edit</span>
-                            </button>
-                            <button
-                              onClick={() => handleDeleteRoom(room.id)}
-                              className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center space-x-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              <span>Delete</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div className={`rounded-lg shadow-sm border overflow-hidden ${
+                  isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+                }`}>
+                  <table className="w-full">
+                    <thead className={`${isDarkMode ? 'bg-slate-700' : 'bg-gray-50'}`}>
+                      <tr>
+                        <th className={`text-left py-3 px-4 font-medium ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Type Name
+                        </th>
+                        <th className={`text-left py-3 px-4 font-medium ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Description
+                        </th>
+                        <th className={`text-left py-3 px-4 font-medium ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Created At
+                        </th>
+                        <th className={`text-left py-3 px-4 font-medium ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.isArray(roomTypes) && roomTypes.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" className={`text-center py-8 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                            No room types found. Add your first room type to get started.
+                          </td>
+                        </tr>
+                      ) : (
+                        Array.isArray(roomTypes) && roomTypes.map((roomType) => (
+                          <tr key={roomType.id || roomType.name || Math.random()} className={`border-b ${isDarkMode ? 'border-slate-600' : 'border-gray-100'}`}>
+                            <td className={`py-3 px-4 ${isDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                              <span className="font-medium">{roomType.name || roomType}</span>
+                            </td>
+                            <td className={`py-3 px-4 ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+                              {roomType.description || 'No description'}
+                            </td>
+                            <td className={`py-3 px-4 ${isDarkMode ? 'text-slate-300' : 'text-gray-600'} text-sm`}>
+                              {roomType.createdAt ? new Date(roomType.createdAt).toLocaleDateString() : 'N/A'}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleEditRoomType(roomType)}
+                                  disabled={loading}
+                                  className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    isDarkMode 
+                                      ? 'text-blue-400 hover:text-blue-300' 
+                                      : 'text-blue-600 hover:text-blue-800'
+                                  }`}
+                                  title="Edit Room Type"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                {hasAdminPrivileges() && (
+                                  <button
+                                    onClick={() => handleDeleteRoomType(roomType.id)}
+                                    disabled={loading}
+                                    className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                      isDarkMode 
+                                        ? 'text-red-400 hover:text-red-300' 
+                                        : 'text-red-600 hover:text-red-800'
+                                    }`}
+                                    title="Delete Room Type (Admin Only)"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )) || (
+                        <tr>
+                          <td colSpan="4" className={`text-center py-8 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                            Loading room types...
+                          </td>
+                        </tr>
+                      )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Room Form Modal */}
               {showRoomForm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                  <div className={`rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto ${
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className={`rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto ${
                     isDarkMode ? 'bg-slate-800' : 'bg-white'
                   }`}>
-                    <div className="p-6">
-                      <div className="flex justify-between items-center mb-6">
-                        <h4 className={`text-xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
-                          {editingRoom ? 'Edit Room' : 'Add New Room'}
-                        </h4>
-                        <button
-                          onClick={resetRoomForm}
-                          className={`${isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-400 hover:text-gray-600'}`}
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
-                      </div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className={`text-xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                        {editingRoom ? 'Edit Room' : 'Add New Room'}
+                      </h4>
+                      <button
+                        onClick={resetRoomForm}
+                        className={`${isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-400 hover:text-gray-600'}`}
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
 
-                      <form onSubmit={handleRoomSubmit} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Room Name */}
-                          <div>
-                            <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                              Room Name *
-                            </label>
-                            <input
-                              type="text"
-                              value={roomForm.name}
-                              onChange={(e) => handleRoomInputChange('name', e.target.value)}
-                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
-                                roomFormErrors.name 
-                                  ? 'border-red-500' 
-                                  : isDarkMode 
-                                    ? 'bg-slate-700 border-slate-600 text-slate-200' 
-                                    : 'bg-white border-gray-300 text-gray-900'
-                              }`}
-                              placeholder="e.g., Deluxe Ocean View"
-                            />
-                            {roomFormErrors.name && (
-                              <p className="text-red-500 text-xs mt-1">{roomFormErrors.name}</p>
-                            )}
-                          </div>
-
-                          {/* Room Type */}
-                          <div>
-                            <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                              Room Type *
-                            </label>
-                            <select
-                              value={roomForm.type}
-                              onChange={(e) => handleRoomInputChange('type', e.target.value)}
-                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
-                                roomFormErrors.type 
-                                  ? 'border-red-500' 
-                                  : isDarkMode 
-                                    ? 'bg-slate-700 border-slate-600 text-slate-200' 
-                                    : 'bg-white border-gray-300 text-gray-900'
-                              }`}
-                            >
-                              <option value="">Select room type</option>
-                              <option value="Standard">Standard</option>
-                              <option value="Deluxe">Deluxe</option>
-                              <option value="Suite">Suite</option>
-                              <option value="Presidential">Presidential</option>
-                            </select>
-                            {roomFormErrors.type && (
-                              <p className="text-red-500 text-xs mt-1">{roomFormErrors.type}</p>
-                            )}
-                          </div>
-
-                          {/* Cost per Night */}
-                          <div>
-                            <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                              Cost per Night ($) *
-                            </label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={roomForm.cost}
-                              onChange={(e) => handleRoomInputChange('cost', e.target.value)}
-                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
-                                roomFormErrors.cost 
-                                  ? 'border-red-500' 
-                                  : isDarkMode 
-                                    ? 'bg-slate-700 border-slate-600 text-slate-200' 
-                                    : 'bg-white border-gray-300 text-gray-900'
-                              }`}
-                              placeholder="150"
-                            />
-                            {roomFormErrors.cost && (
-                              <p className="text-red-500 text-xs mt-1">{roomFormErrors.cost}</p>
-                            )}
-                          </div>
-
-                          {/* Room Status */}
-                          <div>
-                            <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                              Status *
-                            </label>
-                            <select
-                              value={roomForm.status}
-                              onChange={(e) => handleRoomInputChange('status', e.target.value)}
-                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
-                                isDarkMode 
-                                  ? 'bg-slate-700 border-slate-600 text-slate-200' 
-                                  : 'bg-white border-gray-300 text-gray-900'
-                              }`}
-                            >
-                              <option value="Available">Available</option>
-                              <option value="Occupied">Occupied</option>
-                              <option value="Maintenance">Maintenance</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Room Image URL */}
-                        <div>
-                          <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                            Room Image URL
-                          </label>
-                          <input
-                            type="url"
-                            value={roomForm.image}
-                            onChange={(e) => handleRoomInputChange('image', e.target.value)}
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] ${
-                              isDarkMode 
-                                ? 'bg-slate-700 border-slate-600 text-slate-200' 
-                                : 'bg-white border-gray-300 text-gray-900'
+                    <form onSubmit={handleRoomSubmit} className="space-y-4">
+                      {/* Room Type Field */}
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Room Type
+                        </label>
+                        <div className="flex space-x-2">
+                          <select
+                            value={roomForm.type}
+                            onChange={(e) => setRoomForm(prev => ({ ...prev, type: e.target.value }))}
+                            className={`flex-1 px-3 py-2 border rounded-md outline-none ${
+                              roomFormErrors.type ? 'border-red-500' : 
+                              isDarkMode ? 'border-slate-600 bg-slate-700 text-slate-200' : 'border-gray-300 bg-white text-gray-900'
                             }`}
-                            placeholder="https://example.com/room-image.jpg"
-                          />
-                          <p className={`text-xs mt-1 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                            Enter a URL for the room image or leave empty for default
-                          </p>
-                        </div>
-
-                        {/* Room Description */}
-                        <div>
-                          <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                            Description *
-                          </label>
-                          <textarea
-                            rows="4"
-                            value={roomForm.description}
-                            onChange={(e) => handleRoomInputChange('description', e.target.value)}
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#BF9264] resize-none ${
-                              roomFormErrors.description 
-                                ? 'border-red-500' 
-                                : isDarkMode 
-                                  ? 'bg-slate-700 border-slate-600 text-slate-200' 
-                                  : 'bg-white border-gray-300 text-gray-900'
-                            }`}
-                            placeholder="Describe the room features, amenities, and what makes it special..."
-                          />
-                          {roomFormErrors.description && (
-                            <p className="text-red-500 text-xs mt-1">{roomFormErrors.description}</p>
-                          )}
-                        </div>
-
-                        {/* Room Features */}
-                        <div>
-                          <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                            Room Features
-                          </label>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
-                            {availableFeatures.map((feature) => (
-                              <label key={feature} className="flex items-center space-x-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={roomForm.features.includes(feature)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      handleRoomInputChange('features', [...roomForm.features, feature]);
-                                    } else {
-                                      handleRoomInputChange('features', roomForm.features.filter(f => f !== feature));
-                                    }
-                                  }}
-                                  className="text-[#BF9264] focus:ring-[#BF9264] border-gray-300 rounded"
-                                />
-                                <span className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                                  {feature}
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Submit Buttons */}
-                        <div className="flex space-x-3 pt-4">
-                          <button
-                            type="submit"
-                            disabled={loading}
-                            className="flex-1 bg-[#BF9264] hover:bg-amber-800 text-white py-2 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                           >
-                            {loading ? 'Processing...' : (editingRoom ? 'Update Room' : 'Add Room')}
-                          </button>
+                            <option value="">Select Room Type</option>
+                            {Array.isArray(roomTypes) && roomTypes.map((type) => (
+                              <option key={type.id || type.name || Math.random()} value={type.name || type}>
+                                {type.name || type}
+                              </option>
+                            ))}
+                          </select>
                           <button
                             type="button"
-                            onClick={resetRoomForm}
-                            disabled={loading}
-                            className={`flex-1 py-2 px-4 rounded-lg transition-colors disabled:cursor-not-allowed ${
-                              isDarkMode 
-                                ? 'bg-slate-600 hover:bg-slate-500 text-slate-200' 
-                                : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                            }`}
+                            onClick={() => setShowNewTypeModal(true)}
+                            className="px-3 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+                            title="Add New Type"
                           >
-                            Cancel
+                            <Plus className="w-4 h-4" />
                           </button>
                         </div>
-                      </form>
+                        {roomFormErrors.type && (
+                          <p className="text-red-500 text-xs mt-1">{roomFormErrors.type}</p>
+                        )}
+                      </div>
+
+                      {/* Room Number Field */}
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Room Number
+                        </label>
+                        <input
+                          type="text"
+                          value={roomForm.room_no}
+                          onChange={(e) => setRoomForm(prev => ({ ...prev, room_no: e.target.value }))}
+                          className={`w-full px-3 py-2 border rounded-md outline-none ${
+                            roomFormErrors.room_no ? 'border-red-500' : 
+                            isDarkMode ? 'border-slate-600 bg-slate-700 text-slate-200 placeholder-slate-400' : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                          }`}
+                          placeholder="Enter room number (e.g., 101, A-12)"
+                        />
+                        {roomFormErrors.room_no && (
+                          <p className="text-red-500 text-xs mt-1">{roomFormErrors.room_no}</p>
+                        )}
+                      </div>
+
+                      {/* Available Checkbox */}
+                      <div>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={roomForm.available}
+                            onChange={(e) => setRoomForm(prev => ({ ...prev, available: e.target.checked }))}
+                            className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                          />
+                          <span className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                            Room is available for booking
+                          </span>
+                        </label>
+                      </div>
+
+                      {/* Submit Buttons */}
+                      <div className="flex space-x-3 pt-4">
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="flex-1 bg-orange-500 text-white py-2 px-4 rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {loading ? 'Saving...' : (editingRoom ? 'Update Room' : 'Add Room')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetRoomForm}
+                          className={`flex-1 py-2 px-4 rounded-md ${
+                            isDarkMode 
+                              ? 'bg-slate-600 text-slate-200 hover:bg-slate-500' 
+                              : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* New Room Type Modal */}
+              {showNewTypeModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className={`rounded-lg p-6 w-full max-w-md mx-4 ${
+                    isDarkMode ? 'bg-slate-800' : 'bg-white'
+                  }`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className={`text-lg font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                        Add New Room Type
+                      </h4>
+                      <button
+                        onClick={() => {
+                          setShowNewTypeModal(false);
+                          setNewTypeForm({ name: '', description: '' });
+                        }}
+                        className={`${isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-400 hover:text-gray-600'}`}
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Type Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={newTypeForm.name}
+                          onChange={(e) => setNewTypeForm(prev => ({ ...prev, name: e.target.value }))}
+                          className={`w-full px-3 py-2 border rounded-md outline-none ${
+                            isDarkMode ? 'border-slate-600 bg-slate-700 text-slate-200 placeholder-slate-400' : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                          }`}
+                          placeholder="Enter room type name (e.g., Deluxe, Standard)"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleCreateNewType();
+                            }
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Description
+                        </label>
+                        <textarea
+                          value={newTypeForm.description}
+                          onChange={(e) => setNewTypeForm(prev => ({ ...prev, description: e.target.value }))}
+                          className={`w-full px-3 py-2 border rounded-md outline-none h-20 resize-none ${
+                            isDarkMode ? 'border-slate-600 bg-slate-700 text-slate-200 placeholder-slate-400' : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                          }`}
+                          placeholder="Enter room type description (optional)"
+                        />
+                      </div>
+
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={handleCreateNewType}
+                          disabled={loading || !newTypeForm.name.trim()}
+                          className="flex-1 bg-orange-500 text-white py-2 px-4 rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {loading ? 'Creating...' : 'Create Type'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowNewTypeModal(false);
+                            setNewTypeForm({ name: '', description: '' });
+                          }}
+                          className={`flex-1 py-2 px-4 rounded-md ${
+                            isDarkMode 
+                              ? 'bg-slate-600 text-slate-200 hover:bg-slate-500' 
+                              : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
+
+              {/* Room Type Form Modal */}
+              {showRoomTypeForm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className={`rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto ${
+                    isDarkMode ? 'bg-slate-800' : 'bg-white'
+                  }`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className={`text-xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                        {editingRoomType ? 'Edit Room Type' : 'Add Room Type'}
+                      </h4>
+                      <button
+                        onClick={resetRoomTypeForm}
+                        className={`${isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-400 hover:text-gray-600'}`}
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleRoomTypeSubmit} className="space-y-4">
+                      {/* Room Type Name Field */}
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Type Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={roomTypeForm.name}
+                          onChange={(e) => setRoomTypeForm(prev => ({ ...prev, name: e.target.value }))}
+                          className={`w-full px-3 py-2 border rounded-md outline-none ${
+                            roomTypeFormErrors.name ? 'border-red-500' : 
+                            isDarkMode ? 'border-slate-600 bg-slate-700 text-slate-200 placeholder-slate-400' : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                          }`}
+                          placeholder="Enter room type name (e.g., Deluxe, Standard)"
+                        />
+                        {roomTypeFormErrors.name && (
+                          <p className="text-red-500 text-xs mt-1">{roomTypeFormErrors.name}</p>
+                        )}
+                      </div>
+
+                      {/* Room Type Description Field */}
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Description
+                        </label>
+                        <textarea
+                          value={roomTypeForm.description}
+                          onChange={(e) => setRoomTypeForm(prev => ({ ...prev, description: e.target.value }))}
+                          className={`w-full px-3 py-2 border rounded-md outline-none h-24 resize-none ${
+                            isDarkMode ? 'border-slate-600 bg-slate-700 text-slate-200 placeholder-slate-400' : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                          }`}
+                          placeholder="Enter room type description (optional)"
+                        />
+                      </div>
+
+                      {/* Submit Buttons */}
+                      <div className="flex space-x-3 pt-4">
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="flex-1 bg-orange-500 text-white py-2 px-4 rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {loading ? 'Saving...' : (editingRoomType ? 'Update Room Type' : 'Add Room Type')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetRoomTypeForm}
+                          className={`flex-1 py-2 px-4 rounded-md ${
+                            isDarkMode 
+                              ? 'bg-slate-600 text-slate-200 hover:bg-slate-500' 
+                              : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
-          )}{activeTab === 'settings' && (
+          )}          {activeTab === 'settings' && (
             <div className="space-y-6">
               <h3 className={`text-2xl font-semibold ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>Settings</h3>
               
@@ -2503,8 +2701,7 @@ const AdminDashboard = () => {
                     </button>
                   </div>
                 </div>
-              </div>
-              {/* Appearance Settings */}
+              </div>{/* Appearance Settings */}
               <div className={`rounded-lg shadow-sm border p-6 ${
                 isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
               }`}>

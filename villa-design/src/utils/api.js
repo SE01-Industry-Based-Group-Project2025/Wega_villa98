@@ -13,11 +13,35 @@ export const apiFetch = async (endpoint, options = {}) => {
   
   // Get JWT token from localStorage
   const token = localStorage.getItem('token');
+  const sessionId = localStorage.getItem('sessionId');
   
-  // Default headers with authentication
+  // Debug token information
+  if (token) {
+    console.log('Token found - Length:', token.length);
+    console.log('Token starts with:', token.substring(0, 20) + '...');
+    
+    // Check if token looks like a JWT (has 3 parts separated by dots)
+    const tokenParts = token.split('.');
+    console.log('Token parts count:', tokenParts.length);
+    if (tokenParts.length === 3) {
+      console.log('Token appears to be a valid JWT format');
+    } else {
+      console.warn('Token does not appear to be in JWT format');
+    }
+  } else {
+    console.warn('No token found in localStorage');
+  }
+
+  // Debug session information
+  if (sessionId) {
+    console.log('Session ID found:', sessionId.substring(0, 8) + '...');
+  }
+  
+  // Default headers with authentication and session management
   const defaultHeaders = {
     'Content-Type': 'application/json',
-    ...(token && { 'Authorization': `Bearer ${token}` })
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...(sessionId && { 'X-Session-Id': sessionId })
   };
 
   // Merge headers
@@ -77,11 +101,26 @@ export const apiFetch = async (endpoint, options = {}) => {
         error = 'Server is unreachable. Please check if the backend is running and CORS is configured properly.';
       } else if (response.status === 401) {
         console.error('Authentication Error: Invalid or expired token');
-        error = 'Authentication failed. Please log in again.';
-        // Clear invalid token
-        localStorage.removeItem('token');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('username');
+        
+        // Check if this is a session expiration
+        if (json?.code === 'SESSION_EXPIRED') {
+          console.error('Session Expired: User session has timed out');
+          error = 'Your session has expired. Please log in again.';
+          
+          // Clear all authentication data
+          localStorage.clear();
+          
+          // Redirect to login page
+          window.location.href = '/auth';
+        } else {
+          error = 'Authentication failed. Please log in again.';
+          // Clear invalid token
+          localStorage.removeItem('token');
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('username');
+          localStorage.removeItem('sessionId');
+          localStorage.removeItem('sessionManaged');
+        }
       } else if (response.status === 403) {
         console.error('Authorization Error: Insufficient privileges');
         error = 'You do not have permission to perform this action.';
@@ -262,7 +301,7 @@ const showCustomNotification = (message, type = 'info') => {
  * @param {object} data - Additional data to log
  */
 const debugId = (context, id, data = {}) => {
-  console.group(`🔍 ID Debug: ${context}`);
+  console.group(`ID Debug: ${context}`);
   console.log('ID Value:', id);
   console.log('ID Type:', typeof id);
   console.log('ID String:', String(id));
@@ -278,3 +317,215 @@ export default api;
 
 // Export additional utilities
 export { showCustomNotification, debugId };
+
+/**
+ * Booking API Functions
+ */
+export const bookingAPI = {
+  // Check authentication status - fallback to token check if endpoint doesn't exist
+  authCheck: async () => {
+    try {
+      return await api.get('/api/auth/verify');
+    } catch (error) {
+      console.warn('Auth verify endpoint not available, using token check fallback');
+      // If endpoint doesn't exist, check token presence as fallback
+      const token = localStorage.getItem('token');
+      return {
+        ok: !!token,
+        json: { authenticated: !!token },
+        error: token ? null : 'No token found'
+      };
+    }
+  },
+  
+  // Get current user profile - fallback to localStorage if endpoint doesn't exist
+  getUserProfile: async () => {
+    try {
+      return await api.get('/api/auth/profile');
+    } catch (error) {
+      console.warn('Profile endpoint not available, using localStorage fallback');
+      // Fallback to localStorage data
+      const userFullName = localStorage.getItem('userFullName');
+      const username = localStorage.getItem('username');
+      
+      if (userFullName || username) {
+        return {
+          ok: true,
+          json: {
+            name: userFullName,
+            full_name: userFullName,
+            email: username, // username is stored as email
+            username: username
+          },
+          error: null
+        };
+      }
+      
+      return {
+        ok: false,
+        json: null,
+        error: 'No user data available'
+      };
+    }
+  },
+  
+  // Create a new event booking
+  createBooking: async (bookingData) => {
+    console.log('Creating booking with data:', bookingData);
+    console.log('Token available:', !!localStorage.getItem('token'));
+    console.log('API Base URL:', API_BASE_URL);
+    
+    try {
+      const response = await api.post('/api/bookings', bookingData);
+      console.log('Booking API response:', response);
+      
+      if (response.ok) {
+        console.log('Booking successfully saved to database');
+        return response;
+      } else {
+        console.error('Database save failed:', response.error);
+        throw new Error(response.error || 'Failed to save booking');
+      }
+    } catch (error) {
+      console.error('Booking API failed:', error);
+      
+      // Check if it's a network error (backend not running)
+      if (error.message?.includes('Server is unreachable') || 
+          error.message?.includes('Network error') ||
+          error.message?.includes('Connection failed')) {
+        
+        console.error('BACKEND NOT RUNNING - Database save failed!');
+        console.log('Booking data that should be saved:', JSON.stringify(bookingData, null, 2));
+        
+        // Show error notification
+        setTimeout(() => {
+          showCustomNotification(
+            'Backend server is not running! Booking not saved to database. Please start your backend server.',
+            'error'
+          );
+        }, 500);
+        
+        // Return error instead of fake success
+        return {
+          ok: false,
+          json: null,
+          error: 'Backend server not running - booking not saved to database'
+        };
+      }
+      
+      // For other errors, re-throw
+      throw error;
+    }
+  },
+  
+  // Get user's bookings
+  getUserBookings: () => api.get('/api/bookings/my-bookings'),
+  
+  // Get specific booking by ID
+  getBooking: (bookingId) => api.get(`/api/bookings/${bookingId}`),
+  
+  // Cancel a pending booking
+  cancelBooking: (bookingId) => api.put(`/api/bookings/${bookingId}/cancel`),
+  
+  // Get user booking statistics
+  getUserStats: () => api.get('/api/bookings/my-stats')
+};
+
+/**
+ * Review API Functions
+ * Note: Backend currently restricts users to one review each.
+ * To allow multiple reviews, backend needs to be updated.
+ */
+export const reviewAPI = {
+  // Get all reviews
+  getAllReviews: () => api.get('/api/reviews/all'),
+  
+  // Create a new review (currently restricted to one per user by backend)
+  createReview: (reviewData) => api.post('/api/reviews/create', reviewData),
+  
+  // Get reviews by user ID (my reviews)
+  getUserReviews: () => api.get('/api/reviews/my-reviews'),
+  
+  // Get reviews by rating
+  getReviewsByRating: (rating) => api.get(`/api/reviews/rating/${rating}`),
+  
+  // Update a review
+  updateReview: (reviewId, reviewData) => api.put(`/api/reviews/update/${reviewId}`, reviewData),
+  
+  // Delete a review
+  deleteReview: (reviewId) => api.delete(`/api/reviews/delete/${reviewId}`),
+  
+  // Get review statistics
+  getReviewStatistics: () => api.get('/api/reviews/statistics'),
+  
+  // Check if user can review
+  checkCanReview: () => api.get('/api/reviews/can-review')
+};
+
+/**
+ * User Dashboard API Functions
+ */
+export const userAPI = {
+  // Get user's room bookings
+  getRoomBookings: () => api.get('/api/user/room-bookings'),
+  
+  // Get user's event bookings with full details
+  getEventBookings: () => api.get('/api/user/event-bookings'),
+  
+  // Get user's travel history
+  getTravelHistory: () => api.get('/api/user/travel-history'),
+  
+  // Update room booking
+  updateRoomBooking: (bookingId, updateData) => api.put(`/api/user/room-bookings/${bookingId}`, updateData),
+  
+  // Update event booking
+  updateEventBooking: (bookingId, updateData) => api.put(`/api/user/event-bookings/${bookingId}`, updateData),
+  
+  // Cancel room booking
+  cancelRoomBooking: (bookingId) => api.delete(`/api/user/room-bookings/${bookingId}`),
+  
+  // Cancel event booking
+  cancelEventBooking: (bookingId) => api.delete(`/api/user/event-bookings/${bookingId}`),
+  
+  // Get dashboard statistics
+  getDashboardStats: () => api.get('/api/user/dashboard-stats'),
+  
+  // Get recent activity
+  getRecentActivity: () => api.get('/api/user/recent-activity'),
+  
+  // Get upcoming events
+  getUpcomingEvents: () => api.get('/api/user/upcoming-events')
+};
+
+// Room Management API
+export const roomAPI = {
+  // Get all rooms
+  getAllRooms: () => api.get('/api/rooms'),
+  
+  // Get room types
+  getRoomTypes: () => api.get('/api/rooms/types'),
+  
+  // Create new room
+  createRoom: (roomData) => api.post('/api/rooms', roomData),
+  
+  // Update room
+  updateRoom: (roomId, roomData) => api.put(`/api/rooms/${roomId}`, roomData),
+  
+  // Delete room (admin only)
+  deleteRoom: (roomId) => api.delete(`/api/rooms/${roomId}`),
+  
+  // Create new room type with description
+  createRoomType: (roomTypeData) => api.post('/api/rooms/types', roomTypeData),
+  
+  // Create simple room type (name only) - fallback for existing functionality
+  createSimpleRoomType: (typeName) => api.post('/api/rooms/types/simple', { name: typeName }),
+  
+  // Update room type
+  updateRoomType: (roomTypeId, roomTypeData) => api.put(`/api/rooms/types/${roomTypeId}`, roomTypeData),
+  
+  // Delete room type (admin only)
+  deleteRoomType: (roomTypeId) => api.delete(`/api/rooms/types/${roomTypeId}`),
+  
+  // Update room availability
+  updateRoomAvailability: (roomId, available) => api.patch(`/api/rooms/${roomId}/availability`, { available })
+};

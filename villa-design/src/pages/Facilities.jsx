@@ -62,16 +62,16 @@ const Facilities = () => {
     {
       id: 1,
       title: "Romantic Getaway",
-      price: "₹15,000",
+      price: "Rs.25,000",
       duration: "2 Days / 1 Night",
-      features: ["Ocean view room", "Candlelight dinner", "Couple spa", "Beach walk"],
+      features: ["Pool view room", "Candlelight dinner", "Beach walk"],
       image: "/assets/couple.png",
       discount: "20% OFF"
     },
     {
       id: 2,
       title: "Adventure Package",
-      price: "₹25,000",
+      price: "Rs.45,000",
       duration: "3 Days / 2 Nights",
       features: ["Surfing lessons", "Galle fort tour", "Turtle watching", "BBQ night"],
       image: "/assets/travel.jpg",
@@ -80,9 +80,9 @@ const Facilities = () => {
     {
       id: 3,
       title: "Family Fun",
-      price: "₹35,000",
-      duration: "4 Days / 3 Nights",
-      features: ["Family rooms", "Kids activities", "Beach games", "Local tours"],
+      price: "Rs.65,000",
+      duration: "3 Days / 2 Nights",
+      features: ["2 Deluxe rooms", "Kids activities", "Beach walk", "villa around places tour"],
       image: "/assets/beach.jpg",
       discount: "25% OFF"
     }

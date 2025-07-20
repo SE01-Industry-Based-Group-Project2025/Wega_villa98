@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { TextPlugin } from "gsap/TextPlugin";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Footer from "../components/Footer";
 import Review from "../components/ClientReview";
 import Navbar from "../components/Navbar";
 import PageTransition from "../components/PageTransition";
 import { usePageTransition } from "../hooks/usePageTransition";
 
-gsap.registerPlugin(TextPlugin);
+gsap.registerPlugin(TextPlugin, ScrollTrigger);
 
 const Home = () => {
   const { transitionTo, currentPath } = usePageTransition();
@@ -24,6 +25,25 @@ const Home = () => {
   const buttonRef = useRef(null);
   const overlayRef = useRef(null);
   const decorativeRef = useRef(null);
+  
+  // Section refs for scroll animations
+  const welcomeRef = useRef(null);
+  const welcomeImageRef = useRef(null);
+  const welcomeTextRef = useRef(null);
+  const bbqRef = useRef(null);
+  const bbqImageRef = useRef(null);
+  const bbqTextRef = useRef(null);
+  const nightRef = useRef(null);
+  const nightImageRef = useRef(null);
+  const nightTextRef = useRef(null);
+  const tourRef = useRef(null);
+  const tourImageRef = useRef(null);
+  const tourTextRef = useRef(null);
+  const reviewsRef = useRef(null);
+  
+  // Floating elements refs
+  const particlesRef = useRef(null);
+  const dotsRef = useRef(null);
 
   const texts = [
     "EXPERIENCE LUXURY",
@@ -49,7 +69,9 @@ const Home = () => {
 
   // GSAP Animations
   useEffect(() => {
-    const tl = gsap.timeline();    // Initial page load animations
+    const tl = gsap.timeline();
+    
+    // Initial page load animations
     tl.fromTo(titleRef.current, 
       { y: 100, opacity: 0, scale: 0.8 }, 
       { y: 0, opacity: 1, scale: 1, duration: 1.5, ease: "power3.out" }
@@ -65,16 +87,17 @@ const Home = () => {
       "-=0.5"
     );
 
-    // Floating animation for decorative elements
+    // Continuous floating animations
     gsap.to(decorativeRef.current, {
       y: -20,
-      duration: 3,
+      rotation: 360,
+      duration: 8,
       repeat: -1,
       yoyo: true,
       ease: "power2.inOut"
     });
 
-    // Pulse animation for button
+    // Enhanced button pulse animation
     gsap.to(buttonRef.current, {
       scale: 1.05,
       duration: 2,
@@ -83,6 +106,213 @@ const Home = () => {
       ease: "power2.inOut"
     });
 
+    // Floating particles animation
+    gsap.to(".floating-particle", {
+      y: -30,
+      x: 15,
+      rotation: 180,
+      duration: 4,
+      repeat: -1,
+      yoyo: true,
+      ease: "power2.inOut",
+      stagger: 0.5
+    });
+
+    // Side dots animation
+    gsap.to(".nav-dot", {
+      scale: 1.2,
+      duration: 2,
+      repeat: -1,
+      yoyo: true,
+      ease: "power2.inOut",
+      stagger: 0.3
+    });
+
+    // Welcome Section Scroll Animation
+    gsap.fromTo(welcomeImageRef.current,
+      { x: -100, opacity: 0, rotation: -10 },
+      {
+        x: 0,
+        opacity: 1,
+        rotation: 0,
+        duration: 1.5,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: welcomeRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+
+    gsap.fromTo(welcomeTextRef.current,
+      { x: 100, opacity: 0, y: 50 },
+      {
+        x: 0,
+        opacity: 1,
+        y: 0,
+        duration: 1.5,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: welcomeRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+
+    // BBQ Section Animation
+    gsap.fromTo(bbqImageRef.current,
+      { scale: 0.8, opacity: 0, rotation: 5 },
+      {
+        scale: 1,
+        opacity: 1,
+        rotation: 0,
+        duration: 1.5,
+        ease: "back.out(1.7)",
+        scrollTrigger: {
+          trigger: bbqRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+
+    gsap.fromTo(bbqTextRef.current,
+      { x: 150, opacity: 0 },
+      {
+        x: 0,
+        opacity: 1,
+        duration: 1.2,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: bbqRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+
+    // Night Functions Animation
+    gsap.fromTo(nightTextRef.current,
+      { x: -150, opacity: 0, y: 30 },
+      {
+        x: 0,
+        opacity: 1,
+        y: 0,
+        duration: 1.2,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: nightRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+
+    gsap.fromTo(nightImageRef.current,
+      { scale: 0.7, opacity: 0, rotation: -10 },
+      {
+        scale: 1,
+        opacity: 1,
+        rotation: 0,
+        duration: 1.5,
+        ease: "elastic.out(1, 0.8)",
+        scrollTrigger: {
+          trigger: nightRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+
+    // Tour Guide Animation
+    gsap.fromTo(tourImageRef.current,
+      { y: 100, opacity: 0, scale: 0.9 },
+      {
+        y: 0,
+        opacity: 1,
+        scale: 1,
+        duration: 1.5,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: tourRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+
+    gsap.fromTo(tourTextRef.current,
+      { x: 100, opacity: 0, y: 30 },
+      {
+        x: 0,
+        opacity: 1,
+        y: 0,
+        duration: 1.2,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: tourRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+
+    // Reviews Section Animation
+    gsap.fromTo(reviewsRef.current,
+      { y: 50, opacity: 0, scale: 0.95 },
+      {
+        y: 0,
+        opacity: 1,
+        scale: 1,
+        duration: 1.5,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: reviewsRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+
+    // Parallax effect for sections
+    gsap.to(".parallax-bg", {
+      yPercent: -50,
+      ease: "none",
+      scrollTrigger: {
+        trigger: ".parallax-bg",
+        start: "top bottom",
+        end: "bottom top",
+        scrub: true
+      }
+    });
+
+    // Continuous hover animations for images
+    const images = [bbqImageRef.current, nightImageRef.current, tourImageRef.current];
+    images.forEach(img => {
+      if (img) {
+        img.addEventListener('mouseenter', () => {
+          gsap.to(img, { scale: 1.1, rotation: 2, duration: 0.3, ease: "power2.out" });
+        });
+        img.addEventListener('mouseleave', () => {
+          gsap.to(img, { scale: 1, rotation: 0, duration: 0.3, ease: "power2.out" });
+        });
+      }
+    });
+
+    return () => {
+      ScrollTrigger.getAll().forEach(trigger => trigger.kill());
+    };
   }, []);
 
   // Text change animation
@@ -118,10 +348,12 @@ const Home = () => {
         
         {/* Floating Particles */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
-          <div className="absolute top-1/3 right-1/3 w-1 h-1 bg-white rounded-full animate-ping"></div>
-          <div className="absolute bottom-1/4 left-1/3 w-1.5 h-1.5 bg-amber-300 rounded-full animate-pulse"></div>
-          <div className="absolute top-1/2 right-1/4 w-1 h-1 bg-white/80 rounded-full animate-ping"></div>
+          <div className="floating-particle absolute top-1/4 left-1/4 w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+          <div className="floating-particle absolute top-1/3 right-1/3 w-1 h-1 bg-white rounded-full animate-ping"></div>
+          <div className="floating-particle absolute bottom-1/4 left-1/3 w-1.5 h-1.5 bg-amber-300 rounded-full animate-pulse"></div>
+          <div className="floating-particle absolute top-1/2 right-1/4 w-1 h-1 bg-white/80 rounded-full animate-ping"></div>
+          <div className="floating-particle absolute bottom-1/3 right-1/2 w-2 h-2 bg-amber-500/70 rounded-full"></div>
+          <div className="floating-particle absolute top-3/4 left-1/5 w-1.5 h-1.5 bg-white/60 rounded-full"></div>
         </div>
 
         {/* Main Content */}
@@ -180,7 +412,7 @@ const Home = () => {
             <button
               key={index}
               onClick={() => setCurrentImage(index)}              
-              className={`w-3 h-3 rounded-full transition-all duration-300 ${
+              className={`nav-dot w-3 h-3 rounded-full transition-all duration-300 ${
                 currentImage === index 
                   ? 'bg-amber-400 scale-125' 
                   : 'bg-white/50'
@@ -191,10 +423,10 @@ const Home = () => {
       </div>
 
        {/* Welcome Section */}
-        <section className="py-16 px-4">
+        <section ref={welcomeRef} className="py-16 px-4">
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center md:items-start gap-12">
             {/* Image Left */}
-            <div className="md:w-1/2 flex justify-center">
+            <div ref={welcomeImageRef} className="md:w-1/2 flex justify-center">
               <img
                 src="/assets/couple.png"
                 alt="Couple"
@@ -203,7 +435,7 @@ const Home = () => {
             </div>
 
             {/* Text Right */}
-            <div className="md:w-1/2 text-center md:text-left">
+            <div ref={welcomeTextRef} className="md:w-1/2 text-center md:text-left">
               <h2 className="text-3xl md:text-4xl font-bold text-amber-950 mb-4 mt-10">
                 Welcome to Wega Villa <span className="text-amber-600">98!</span>
               </h2>
@@ -221,10 +453,10 @@ const Home = () => {
 
 
       {/* BBQ Section */}
-      <section className="mt-20 py-16 px-4 bg-[#EAE4D5]">
+      <section ref={bbqRef} className="mt-20 py-16 px-4 bg-[#EAE4D5] parallax-bg">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-8">
-          <img src="/assets/BBQ.jpg" alt="BBQ" className="w-full md:w-1/2 rounded-lg shadow-lg -mt-12 md:-mt-20 transition-transform duration-500"/>
-          <div>
+          <img ref={bbqImageRef} src="/assets/BBQ.jpg" alt="BBQ" className="w-full md:w-1/2 rounded-lg shadow-lg -mt-12 md:-mt-20 transition-transform duration-500"/>
+          <div ref={bbqTextRef}>
             <h3 className="text-2xl font-bold mb-4">BBQ Party</h3>
             <p className="text-lg">
               Join us for a fun-filled BBQ party under the stars at WEGA VILLA 98!
@@ -236,9 +468,9 @@ const Home = () => {
       </section>
 
       {/* Night Functions */}
-      <section className="mt-24 py-16 px-4 bg-[#FFE8CD]">
+      <section ref={nightRef} className="mt-24 py-16 px-4 bg-[#FFE8CD] parallax-bg">
         <div className="max-w-5xl mx-auto flex flex-col-reverse md:flex-row items-center gap-8">
-          <div>
+          <div ref={nightTextRef}>
             <h3 className="text-2xl font-bold mb-4">Night Functions</h3>
             <p className="text-lg">
               Celebrate your special moments at WEGA VILLA 98 with unforgettable
@@ -246,16 +478,18 @@ const Home = () => {
               anniversary, our peaceful garden and lighting set the perfect mood
               for a joyful and private evening.
             </p>
-          </div>          <img src="/assets/night.png" alt="Night Party" className="w-full md:w-1/2 rounded-lg shadow-lg -mt-12 md:-mt-20 transition-transform duration-500"
+          </div>          
+          <img ref={nightImageRef} src="/assets/night.png" alt="Night Party" className="w-full md:w-1/2 rounded-lg shadow-lg -mt-12 md:-mt-20 transition-transform duration-500"
           />
         </div>
       </section>
 
       {/* Tour Guide */}
-      <section className=" mt-24 py-10 px-4 bg-[#fff5eb]">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-8">          <img src="/assets/travel.jpg" alt="Tour Guide"
+      <section ref={tourRef} className=" mt-24 py-10 px-4 bg-[#fff5eb] parallax-bg">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-8">          
+          <img ref={tourImageRef} src="/assets/travel.jpg" alt="Tour Guide"
             className="w-full md:w-1/2 rounded-lg shadow-lg -mt-12 md:-mt-20 transition-transform duration-500"/>
-          <div className="text-center md:text-left">
+          <div ref={tourTextRef} className="text-center md:text-left">
             <h3 className="text-2xl font-bold mb-4">Tour Guide</h3>
             <p className="text-lg">
               Explore the beauty of Galle with the help of our friendly tour
@@ -269,7 +503,7 @@ const Home = () => {
       </section>
 
       {/* reviews */}
-      <section className=" mt-24 py-10 px-4">
+      <section ref={reviewsRef} className=" mt-24 py-10 px-4">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-8">
           <Review />
         </div>
