@@ -14,11 +14,7 @@ Copy the `.env.example` file to `.env` and update with your email credentials:
 
 ```bash
 # Gmail Configuration (Recommended)
-EMAIL_USERNAME=jayodya2002@gmail.com
-EMAIL_PASSWORD=qflylukycvggbxfc
-EMAIL_FROM=jayodya2002@gmail.com
-ADMIN_EMAIL=admin@wegavilla.com
-EMAIL_ENABLED=true
+
 ```
 
 ### Step 2: Gmail Setup (Recommended)
